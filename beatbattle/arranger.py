@@ -75,7 +75,8 @@ class TrapArranger:
 
             # Bars 1-4 (Intro): melodies, snares/claps on beat 3 on bars 3-4, fx_1 and dry Vox on bar 4
             if bar < 4:
-                safe_add("melodies", start_beat, metadata={"halftime": True, "filter_sweep": True})
+                if bar == 0:
+                    safe_add("melodies", start_beat, metadata={"halftime": True, "filter_sweep": True, "duration": 4 * self.bar_duration_sec})
                 if bar >= 2: # Bars 3-4 (index 2-3)
                     safe_add("snares", start_beat + 2) # Beat 3
                 if bar == 3: # Bar 4
@@ -84,7 +85,8 @@ class TrapArranger:
 
             # Bars 5-12 (Drop 1)
             elif 4 <= bar < 12:
-                safe_add("melodies", start_beat)
+                if bar == 4:
+                    safe_add("melodies", start_beat, metadata={"duration": 8 * self.bar_duration_sec})
                 safe_add("kicks", start_beat) # Kick on beat 1
 
                 # Vary kick syncopation based on seed
@@ -114,7 +116,8 @@ class TrapArranger:
 
             # Bars 13-20 (Drop 2 / Variation)
             elif 12 <= bar < 20:
-                safe_add("melodies", start_beat)
+                if bar == 12:
+                    safe_add("melodies", start_beat, metadata={"duration": 8 * self.bar_duration_sec})
 
                 # Kick variation
                 safe_add("kicks", start_beat)
@@ -136,7 +139,8 @@ class TrapArranger:
 
             # Bars 21-24 (Outro)
             elif 20 <= bar < 24:
-                safe_add("melodies", start_beat)
+                if bar == 20:
+                    safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec})
                 # Light percs on offbeat
                 safe_add("percs_1", start_beat + 1.5)
 
