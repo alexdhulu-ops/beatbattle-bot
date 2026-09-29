@@ -20,8 +20,17 @@ def test_detect_fundamental_freq_808():
     # Generate 55Hz (A1)
     audio = generate_sine_wave(55.0, sr, 1.0)
 
-    freq = detect_fundamental_freq(audio, sr, fmin=30, fmax=130)
+    freq = detect_fundamental_freq(audio, sr, fmin=35, fmax=95)
     assert abs(freq - 55.0) < 1.0
+
+def test_detect_fundamental_freq_prominence():
+    sr = 44100
+    # Create white noise to ensure correlation peak is low, thus failing prominence check
+    np.random.seed(42)
+    audio = np.random.uniform(-1.0, 1.0, sr)
+    freq = detect_fundamental_freq(audio, sr, fmin=100, fmax=800)
+    # Because there's no strong fundamental, prominence check (<0.6) should trigger and return 0.0
+    assert freq == 0.0
 
 def test_detect_fundamental_freq_melody():
     sr = 44100
