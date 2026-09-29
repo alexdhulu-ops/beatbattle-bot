@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 import numpy as np
 import os
 import glob
+import soundfile as sf
 
 
 class SampleLibrary:
@@ -54,20 +55,32 @@ class SampleLibrary:
             elif "snare" in search_str or "clap" in search_str or "rim" in search_str or "sd" in search_str:
                 self._add_to_library("snares", file_path)
             elif "perc" in search_str:
-                if "percs_1" not in self.library:
-                    self.library["percs_1"] = file_path
-                elif "percs_2" not in self.library:
-                    self.library["percs_2"] = file_path
+                duration = self._get_duration(file_path)
+                if duration < 1.2:
+                    self._add_to_library("perc_oneshot", file_path)
+                elif duration > 1.5:
+                    self._add_to_library("perc_loop", file_path)
             elif "fx" in search_str or "riser" in search_str or "impact" in search_str:
-                # Naive split into fx_1, fx_2 based on what's available
-                if "fx_1" not in self.library:
-                    self._add_to_library("fx_1", file_path)
-                else:
-                    self._add_to_library("fx_2", file_path)
-            elif "vox" in search_str or "vocal" in search_str:
-                self._add_to_library("Vox", file_path)
+                duration = self._get_duration(file_path)
+                if duration < 1.2:
+                    self._add_to_library("fx_oneshot", file_path)
+                elif duration > 1.5:
+                    self._add_to_library("fx_texture", file_path)
+            elif any(kw in search_str for kw in ["vox", "vocal", "chant", "acapella", "adlib", "phrase"]):
+                duration = self._get_duration(file_path)
+                if duration < 1.2:
+                    self._add_to_library("vox_oneshot", file_path)
+                elif duration > 1.5:
+                    self._add_to_library("vox_loop", file_path)
             elif any(kw in search_str for kw in ["loop", "melody", "sample", "synth", "pad", "flute"]):
                 self._add_to_library("melodies", file_path)
+
+    def _get_duration(self, file_path: str) -> float:
+        try:
+            info = sf.info(file_path)
+            return info.duration
+        except Exception:
+            return 0.0
 
     def _add_to_library(self, category: str, file_path: str):
         """Adds to library if not already populated to keep the first match."""

@@ -139,24 +139,55 @@ class AudioRenderer:
 
             audio_data, sr = sample_cache[file_path]
 
+            metadata = event.get("metadata", {})
+
+            # General effects: Panning
+            if "pan" in metadata:
+                # pan value between -1.0 (left) and 1.0 (right)
+                pan = metadata["pan"]
+                left_gain = np.cos((pan + 1) * np.pi / 4)
+                right_gain = np.sin((pan + 1) * np.pi / 4)
+                audio_data = audio_data.copy()
+                audio_data[0] *= left_gain
+                audio_data[1] *= right_gain
+
+            # General effects: LPF
+            if "lpf" in metadata:
+                audio_data = audio_data.copy()
+                nyq = 0.5 * sr
+                cutoff = metadata["lpf"] / nyq
+                b_lp, a_lp = scipy.signal.butter(2, cutoff, btype='low', analog=False)
+                audio_data = self._apply_biquad(audio_data, b_lp, a_lp)
+
+            # General effects: Attenuation (Gain Staging)
+            if "attenuate" in metadata:
+                audio_data = audio_data.copy()
+                gain_linear = 10 ** (metadata["attenuate"] / 20.0)
+                audio_data *= gain_linear
+
             if category == "melodies":
-                audio_data = self._process_melody_dsp(audio_data.copy(), event.get("metadata"))
+                audio_data = self._process_melody_dsp(audio_data.copy(), metadata)
 
-                # Length trimming for melodies/synths
-                metadata = event.get("metadata", {})
-                if "duration" in metadata:
-                    target_samples = int(metadata["duration"] * sr)
-                    if audio_data.shape[1] > target_samples:
-                        audio_data = audio_data[:, :target_samples]
+            # Length trimming for loops (melodies, vox_loop, perc_loop, fx_texture)
+            if "duration" in metadata and category in ["melodies", "vox_loop", "perc_loop", "fx_texture"]:
+                target_samples = int(metadata["duration"] * sr)
 
-                        # Apply a 50ms smooth fade-out at the cut point to prevent clicks
-                        fade_sec = 0.050
-                        fade_samples = int(fade_sec * sr)
-                        if audio_data.shape[1] > fade_samples:
-                            # Cosine fade out curve
-                            t = np.linspace(0, np.pi/2, fade_samples)
-                            fade_curve = np.cos(t)
-                            audio_data[:, -fade_samples:] *= fade_curve
+                # If audio is shorter than target duration and it's a loop, we could time-stretch.
+                # A simple naive time-stretch via resampling (since full phase-vocoder is heavy for a stub)
+                if audio_data.shape[1] < target_samples and category != "melodies":
+                    audio_data = scipy.signal.resample(audio_data, target_samples, axis=1)
+
+                if audio_data.shape[1] > target_samples:
+                    audio_data = audio_data[:, :target_samples]
+
+                    # Apply a 50ms smooth fade-out at the cut point to prevent clicks
+                    fade_sec = 0.050
+                    fade_samples = int(fade_sec * sr)
+                    if audio_data.shape[1] > fade_samples:
+                        # Cosine fade out curve
+                        t = np.linspace(0, np.pi/2, fade_samples)
+                        fade_curve = np.cos(t)
+                        audio_data[:, -fade_samples:] *= fade_curve
 
                 # Sidechain ducking for melodies triggered by kicks
                 for kt in kick_times:
@@ -175,26 +206,29 @@ class AudioRenderer:
                         envelope = np.linspace(ducking_linear, 1.0, actual_decay_len)
                         audio_data[:, duck_start_sample:duck_end_sample] *= envelope
 
-            # Apply pitch-shifting, glide, and saturation for 808s based on metadata
-            elif category == "808s":
+            # General effects: Pitch Shifting (used for 808s and tonal one-shots)
+            if "pitch_shift" in metadata:
                 audio_data = audio_data.copy()
-                metadata = event.get("metadata", {})
+                pitch_shift_semitones = metadata["pitch_shift"]
+                if pitch_shift_semitones != 0:
+                    # Resample to static pitch shift (speed up / slow down)
+                    ratio = 2.0 ** (-pitch_shift_semitones / 12.0)
+                    new_len = int(audio_data.shape[1] * ratio)
+                    audio_data = scipy.signal.resample(audio_data, new_len, axis=1)
 
-                pitch_shift_semitones = metadata.get("pitch_shift", 0)
+            # Apply glide and saturation for 808s based on metadata
+            if category == "808s":
+                audio_data = audio_data.copy()
                 glide = metadata.get("glide", False)
 
                 # Apply soft-clipping saturation (gain drive -> tanh)
-                # Boost audible mid-harmonics on the 808
                 drive_linear = 2.5
                 audio_data = np.tanh(audio_data * drive_linear)
 
                 if glide:
                     # Implement smooth 100-200ms pitch slide envelope.
-                    # A true pitch bend resamples audio dynamically over time.
-                    # For a simple turnaround slide up (e.g. +12 semitones), we can warp the time axis.
                     glide_samples = int(0.150 * sr) # 150ms glide
                     if audio_data.shape[1] > glide_samples:
-                        # Linear ramp from 0.5x speed (down an octave) to 1.0x (normal pitch)
                         t_original = np.arange(glide_samples)
                         t_warped = t_original ** 1.5 / (glide_samples ** 0.5)
 
@@ -203,13 +237,6 @@ class AudioRenderer:
                             glided_chunk[ch] = np.interp(t_warped, t_original, audio_data[ch, :glide_samples])
 
                         audio_data[:, :glide_samples] = glided_chunk
-
-                if pitch_shift_semitones != 0:
-                    # Resample to static pitch shift (speed up / slow down)
-                    # ratio = 2 ** (-semitones / 12) -> if shifting DOWN by 2 semitones, length gets LONGER
-                    ratio = 2.0 ** (-pitch_shift_semitones / 12.0)
-                    new_len = int(audio_data.shape[1] * ratio)
-                    audio_data = scipy.signal.resample(audio_data, new_len, axis=1)
 
             # Volume scaling for hihat velocity
             if "velocity" in event.get("metadata", {}):
