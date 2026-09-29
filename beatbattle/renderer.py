@@ -118,6 +118,20 @@ class AudioRenderer:
                 # Transpose to shape (channels, samples)
                 data = data.T
 
+                # Automatic silence stripping / transient detection to fix timing delays.
+                # Find the first index where amplitude crosses a minimal threshold (-40 dBFS ~= 0.01).
+                # Actually, requirement specifies: e.g. -40 dBFS or 0.01 * np.max(np.abs(audio))
+                abs_max = np.max(np.abs(data))
+                if abs_max > 0:
+                    threshold = 0.01 * abs_max
+                    # Check max amplitude across channels at each sample
+                    max_across_channels = np.max(np.abs(data), axis=0)
+                    above_threshold_indices = np.where(max_across_channels > threshold)[0]
+                    if len(above_threshold_indices) > 0:
+                        first_index = above_threshold_indices[0]
+                        # Strip all leading samples before that threshold
+                        data = data[:, first_index:]
+
                 # Resample if necessary (using simple linear interpolation for this stub, or just raise error)
                 # In this system, we expect all samples to be 44.1k or we could use librosa.
                 # For simplicity in this engine, we will assume sf.read loads them, but we enforce shape.
