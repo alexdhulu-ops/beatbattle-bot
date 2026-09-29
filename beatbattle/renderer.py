@@ -94,6 +94,10 @@ class AudioRenderer:
         # Find all kick times to trigger sidechain ducking on 808s
         kick_times = [event["time"] for event in timeline if event.get("category") == "kicks"]
 
+        # Determine 808 event start times to enforce monophonic choke
+        # We sort them to ensure we grab the immediate next chronological 808 start
+        eight08_times = sorted([event["time"] for event in timeline if event.get("category") == "808s"])
+
         # Cache loaded samples to avoid reading the same file multiple times
         sample_cache = {}
 
@@ -265,6 +269,28 @@ class AudioRenderer:
             # Apply glide and saturation for 808s based on metadata
             if category == "808s":
                 audio_data = audio_data.copy()
+
+                # 808 Monophonic Choke ("cut-self") logic
+                # Find the start time of the next 808
+                next_808_time = None
+                for t in eight08_times:
+                    if t > start_time_sec + 0.001: # Avoid matching the current 808's time due to float precision
+                        next_808_time = t
+                        break
+
+                if next_808_time is not None:
+                    # Calculate how many samples until the next 808 hits
+                    samples_until_next = int((next_808_time - start_time_sec) * sr)
+
+                    if audio_data.shape[1] > samples_until_next:
+                        # Truncate the current 808 right before the next one hits
+                        audio_data = audio_data[:, :samples_until_next]
+
+                        # Apply a 5ms linear fade-out to prevent clicks when choking
+                        fade_samples = int(0.005 * sr)
+                        if audio_data.shape[1] > fade_samples:
+                            fade_curve = np.linspace(1.0, 0.0, fade_samples)
+                            audio_data[:, -fade_samples:] *= fade_curve
                 glide = metadata.get("glide", False)
 
                 # Apply soft-clipping saturation (gain drive -> tanh)

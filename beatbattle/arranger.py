@@ -60,7 +60,7 @@ class TrapArranger:
         bass_path = library.get_sample("808s")
 
         melody_note = get_midi_note(melody_path, fmin=100.0, fmax=800.0) if melody_path else 60.0
-        bass_note = get_midi_note(bass_path, fmin=30.0, fmax=130.0) if bass_path else 60.0
+        bass_note = get_midi_note(bass_path, fmin=35.0, fmax=95.0) if bass_path else 60.0
 
         # Calculate base shift required to match the 808 to the melody's root key
         base_808_shift = (melody_note % 12) - (bass_note % 12)
@@ -69,6 +69,10 @@ class TrapArranger:
             base_808_shift -= 12
         elif base_808_shift < -6:
             base_808_shift += 12
+
+        # Abort transposition if detected shift > 5 semitones or base notes failed
+        if abs(base_808_shift) > 5 or melody_note == 0.0 or bass_note == 0.0:
+            base_808_shift = 0
 
         # Detect tonal center of vox/perc one-shots if possible to tune them
         tonal_oneshots_shift = {}
@@ -143,8 +147,8 @@ class TrapArranger:
 
                 safe_add("kicks", start_beat) # Kick on beat 1
 
-                # Vary kick syncopation based on seed
-                kick_sync_pos = rng.choice([1.5, 2.5, 3.5])
+                # Vary kick syncopation based on seed (including 16th note off-beats)
+                kick_sync_pos = rng.choice([1.5, 2.5, 2.75, 3.5])
                 safe_add("kicks", start_beat + kick_sync_pos)
 
                 # 808s with ducking metadata matching kicks and pitch

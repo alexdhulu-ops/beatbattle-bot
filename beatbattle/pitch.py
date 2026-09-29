@@ -54,10 +54,14 @@ def detect_fundamental_freq(audio: np.ndarray, sample_rate: int, fmin: float = 3
     peaks, _ = scipy.signal.find_peaks(corr_slice)
 
     if len(peaks) > 0:
-        best_peak = peaks[np.argmax(corr_slice[peaks])]
-        lag = best_peak + min_lag
-        freq = sample_rate / lag
-        return freq
+        best_peak_idx = peaks[np.argmax(corr_slice[peaks])]
+        best_peak_val = corr_slice[best_peak_idx]
+
+        # Confidence/peak-prominence check
+        if corr[0] > 0 and (best_peak_val / corr[0]) >= 0.6:
+            lag = best_peak_idx + min_lag
+            freq = sample_rate / lag
+            return freq
 
     return 0.0
 
