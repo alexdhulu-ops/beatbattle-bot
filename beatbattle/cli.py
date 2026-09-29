@@ -59,12 +59,12 @@ def generate(
     base_seed = random.randint(1, 1_000_000)
 
     for i in range(1, batch + 1):
-        current_seed = base_seed + i
-        random.seed(current_seed)
-        np.random.seed(current_seed)
+        iter_seed = (base_seed + i * 1000) if base_seed is not None else random.randint(1, 1_000_000)
+        random.seed(iter_seed)
+        np.random.seed(iter_seed)
 
         console.print(f"Generating Trap timeline {i}/{batch}...")
-        timeline = arranger.create_timeline(library, variation_seed=current_seed)
+        timeline = arranger.create_timeline(library, variation_seed=iter_seed)
 
         console.print(f"Rendering audio and applying mastering {i}/{batch}...")
         raw_audio = renderer.render_timeline(timeline)

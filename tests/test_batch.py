@@ -66,3 +66,4 @@ def test_batch_seed_decoupling(mock_samples_dir):
 
     # The two tracks should NOT be perfectly identical
     assert not np.allclose(audio1, audio2, atol=1e-5), "Generations with different seeds produced identical audio arrays"
+    assert not np.array_equal(audio1, audio2), "Generations with different seeds produced identical audio arrays"
