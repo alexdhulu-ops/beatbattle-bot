@@ -19,15 +19,15 @@ def mock_library_dir(tmp_path):
         "fx_1", "fx_2", "Vox"
     ]
 
-    # Create empty 1-second wav files
+    # Create empty 1-second mp3 files
     for folder in folders:
         folder_path = root / folder
         folder_path.mkdir()
-        wav_path = folder_path / f"{folder}_01.wav"
+        mp3_path = folder_path / f"{folder}_01.mp3"
 
         # generate 1 second of silence
         data = np.zeros(44100)
-        sf.write(wav_path, data, 44100)
+        sf.write(mp3_path, data, 44100, format='MP3')
 
     return str(root)
 
@@ -36,7 +36,7 @@ def test_sample_library_loads_all(mock_library_dir):
     assert len(library.library) == 14
     for folder in SampleLibrary.REQUIRED_FOLDERS:
         assert folder in library.library
-        assert library.get_sample(folder).endswith(".wav")
+        assert library.get_sample(folder).endswith(".mp3")
 
 def test_trap_arranger_timeline(mock_library_dir):
     library = SampleLibrary(mock_library_dir)
