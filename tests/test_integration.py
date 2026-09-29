@@ -23,12 +23,12 @@ def mock_samples_dir(tmp_path):
     for folder in folders:
         folder_path = root / folder
         folder_path.mkdir()
-        wav_path = folder_path / f"{folder}_01.wav"
+        mp3_path = folder_path / f"{folder}_01.mp3"
 
         # Generate 0.5s of random noise to ensure non-silence
         # We use a small amplitude to avoid extreme clipping before limiter
         data = np.random.uniform(-0.1, 0.1, sr // 2).astype(np.float32)
-        sf.write(str(wav_path), data, sr)
+        sf.write(str(mp3_path), data, sr, format='MP3')
 
     return str(root)
 

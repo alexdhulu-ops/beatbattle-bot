@@ -34,14 +34,16 @@ class SampleLibrary:
         self._validate_library()
 
     def _load_samples(self) -> None:
-        """Loads the first .wav file found in each defined folder."""
+        """Loads the first .mp3 file found in each defined folder."""
         for folder in self.REQUIRED_FOLDERS:
             folder_path = os.path.join(self.root_dir, folder)
             if os.path.isdir(folder_path):
-                # Grab the first wav file
-                wav_files = glob.glob(os.path.join(folder_path, "*.wav"))
-                if wav_files:
-                    self.library[folder] = sorted(wav_files)[0]
+                # Grab the first mp3 file (case-insensitive globbing isn't built into glob directly,
+                # but we can check both common cases or use a regex-like approach)
+                mp3_files = glob.glob(os.path.join(folder_path, "*.mp3"))
+                mp3_files.extend(glob.glob(os.path.join(folder_path, "*.MP3")))
+                if mp3_files:
+                    self.library[folder] = sorted(mp3_files)[0]
 
     def _validate_library(self) -> None:
         """
@@ -49,7 +51,7 @@ class SampleLibrary:
         Raises ValueError or FileNotFoundError if missing.
         """
         if "808s" not in self.library:
-            raise FileNotFoundError("Strict 808s folder missing or contains no valid .wav file.")
+            raise FileNotFoundError("Strict 808s folder missing or contains no valid .mp3 file.")
 
         missing_critical = [drum for drum in self.CRITICAL_DRUMS if drum not in self.library]
 
@@ -61,7 +63,7 @@ class SampleLibrary:
 
         has_synth = any(synth in self.library for synth in self.SYNTH_FOLDERS)
         if not has_synth:
-            raise ValueError("Missing at least one synth folder with a valid .wav file.")
+            raise ValueError("Missing at least one synth folder with a valid .mp3 file.")
 
     def get_sample(self, category: str) -> Optional[str]:
         """Gets the file path for a specific category."""
