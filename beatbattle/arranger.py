@@ -56,14 +56,17 @@ class TrapArranger:
         for bar in range(self.total_bars):
             start_beat = bar * self.beats_per_bar
 
-            # Beat cut check: total beat cut on the last beat of bar 8 (index 7) and bar 16 (index 15)
-            def should_skip_beat(beat_time):
-                if bar in [7, 15] and (beat_time - start_beat) >= 3.0:
+            # Beat cut check: total beat cut on beats 3 and 4 of bar 4 (index 3) and bar 12 (index 11) for drums/808
+            def should_skip_drum_beat(beat_time):
+                if bar in [3, 11] and (beat_time - start_beat) >= 2.0:
                     return True
                 return False
 
             def safe_add(category: str, beat_time: float, metadata: Dict[str, Any] = None):
-                if not should_skip_beat(beat_time):
+                # Don't cut melodies, only drums/bass on the cut sections
+                if category == "melodies" or category.startswith("fx"):
+                    add_event(category, beat_time, metadata)
+                elif not should_skip_drum_beat(beat_time):
                     add_event(category, beat_time, metadata)
 
             # Determine 808 pitch for this bar
@@ -114,10 +117,24 @@ class TrapArranger:
 
                 safe_add("open_hats", start_beat + 1.5)
 
-            # Bars 13-20 (Drop 2 / Variation)
-            elif 12 <= bar < 20:
+            # Bars 13-16 (Breakdown)
+            elif 12 <= bar < 16:
                 if bar == 12:
-                    safe_add("melodies", start_beat, metadata={"duration": 8 * self.bar_duration_sec})
+                    safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "filter_sweep": True})
+
+                # Light percussion, no 808s or kicks
+                safe_add("snares", start_beat + 2)
+                safe_add("percs_1", start_beat + 1.75)
+
+                # Sparse hihats
+                for i in range(4):
+                    safe_add("hihats", start_beat + i * 1.0)
+
+            # Bars 17-20 (Second Hard Drop)
+            elif 16 <= bar < 20:
+                if bar == 16:
+                    safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec})
+                    safe_add("fx_1", start_beat) # Impact on drop
 
                 # Kick variation
                 safe_add("kicks", start_beat)
@@ -130,6 +147,7 @@ class TrapArranger:
                 safe_add("snares", start_beat + 2)
 
                 # Aggressive hihat rolls (1/16 triplets approximation and 1/32)
+                # Alternating behavior
                 for i in range(16):
                     vel = 0.5 + (i / 32.0) # velocity ramp
                     safe_add("hihats", start_beat + i * 0.25, metadata={"velocity": vel})
