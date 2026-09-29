@@ -62,15 +62,17 @@ class TrapArranger:
         bass_note = get_midi_note(bass_path, fmin=35.0, fmax=95.0) if bass_path else 60.0
 
         # Calculate base shift required to match the 808 to the melody's root key
-        base_808_shift = (melody_note % 12) - (bass_note % 12)
+        # Round the shift strictly to the nearest integer semitone
+        base_808_shift = round((melody_note % 12) - (bass_note % 12))
+
         # Keep shift within -6 to +5 semitones to minimize artifacts
         if base_808_shift > 5:
             base_808_shift -= 12
         elif base_808_shift < -6:
             base_808_shift += 12
 
-        # Abort transposition if detected shift > 5 semitones or base notes failed
-        if abs(base_808_shift) > 5 or melody_note == 0.0 or bass_note == 0.0:
+        # Abort transposition if detected shift exceeds strict limit (+/- 4 semitones) or base notes failed
+        if abs(base_808_shift) > 4 or melody_note == 0.0 or bass_note == 0.0:
             base_808_shift = 0
 
         # Detect tonal center of vox/perc one-shots if possible to tune them
