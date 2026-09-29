@@ -3,45 +3,19 @@ Pattern and song timeline generator.
 """
 from typing import List, Dict, Any
 import numpy as np
-import scipy.signal
 import soundfile as sf
+from beatbattle.pitch import detect_fundamental_freq, freq_to_midi, constrain_to_minor_scale, constrain_to_root_or_fifth
 
 
-def detect_root_key(file_path: str) -> float:
-    """
-    Detects the fundamental frequency (root key) of an audio file
-    using FFT autocorrelation via scipy.signal.
-    """
+def get_midi_note(file_path: str, fmin: float, fmax: float) -> float:
     try:
-        # Load a small chunk for analysis
-        data, sr = sf.read(file_path, frames=44100 * 2) # Read up to 2 seconds
-
-        # Mix to mono
-        if len(data.shape) > 1:
-            data = np.mean(data, axis=1)
-
-        # Autocorrelation
-        corr = scipy.signal.correlate(data, data, mode='full')
-        corr = corr[len(corr)//2:]
-
-        # Find the first peak after the zero-lag peak
-        # We look for peaks in a typical fundamental frequency range (e.g., 20 Hz to 2000 Hz)
-        min_lag = int(sr / 2000)
-        max_lag = int(sr / 20)
-
-        peaks, _ = scipy.signal.find_peaks(corr[min_lag:max_lag])
-        if len(peaks) > 0:
-            best_peak = peaks[np.argmax(corr[min_lag:max_lag][peaks])]
-            lag = best_peak + min_lag
-            freq = sr / lag
-
-            # Convert frequency to MIDI note number (A4 = 440Hz = 69)
-            midi_note = 69 + 12 * np.log2(freq / 440.0)
-            return midi_note
+        data, sr = sf.read(file_path, frames=44100 * 2)
+        freq = detect_fundamental_freq(data, sr, fmin=fmin, fmax=fmax)
+        if freq > 0:
+            return freq_to_midi(freq)
     except Exception:
         pass
-
-    return 60.0 # Default to C4 if detection fails
+    return 60.0
 
 
 class TrapArranger:
@@ -85,8 +59,8 @@ class TrapArranger:
         melody_path = library.get_sample("melodies")
         bass_path = library.get_sample("808s")
 
-        melody_note = detect_root_key(melody_path) if melody_path else 60.0
-        bass_note = detect_root_key(bass_path) if bass_path else 60.0
+        melody_note = get_midi_note(melody_path, fmin=100.0, fmax=800.0) if melody_path else 60.0
+        bass_note = get_midi_note(bass_path, fmin=30.0, fmax=130.0) if bass_path else 60.0
 
         # Calculate base shift required to match the 808 to the melody's root key
         base_808_shift = (melody_note % 12) - (bass_note % 12)
@@ -101,13 +75,9 @@ class TrapArranger:
         for cat in ["vox_oneshot", "perc_oneshot"]:
             cat_path = library.get_sample(cat)
             if cat_path:
-                cat_note = detect_root_key(cat_path)
-                shift = (melody_note % 12) - (cat_note % 12)
-                if shift > 5:
-                    shift -= 12
-                elif shift < -6:
-                    shift += 12
-                tonal_oneshots_shift[cat] = shift
+                cat_note = get_midi_note(cat_path, fmin=100.0, fmax=800.0)
+                raw_shift = round((melody_note % 12) - (cat_note % 12))
+                tonal_oneshots_shift[cat] = constrain_to_root_or_fifth(raw_shift)
 
         def add_event(category: str, beat_time: float, metadata: Dict[str, Any] = None):
             sample_path = library.get_sample(category)
@@ -118,8 +88,9 @@ class TrapArranger:
                     event["metadata"] = metadata
                 events.append(event)
 
-        # Simple 8-bar chord progression for 808s (in semitones relative to root)
-        chord_progression = [0, 0, -2, -2, -4, -4, -5, -5]
+        # Simple 8-bar chord progression for 808s: Root -> Minor 6th -> Minor 7th -> Root
+        # In natural minor: Minor 6th = 8 semitones (or -4), Minor 7th = 10 semitones (or -2)
+        chord_progression = [0, 0, 8, 8, 10, 10, 0, 0]
 
         for bar in range(self.total_bars):
             start_beat = bar * self.beats_per_bar
@@ -137,9 +108,10 @@ class TrapArranger:
                 elif not should_skip_drum_beat(beat_time):
                     add_event(category, beat_time, metadata)
 
-            # Determine 808 pitch for this bar, applying base root key shift
+            # Determine 808 pitch for this bar, applying base root key shift constrained to natural minor
             bar_in_progression = bar % 8
-            current_pitch = base_808_shift + chord_progression[bar_in_progression]
+            raw_pitch = base_808_shift + chord_progression[bar_in_progression]
+            current_pitch = constrain_to_minor_scale(raw_pitch)
 
             # Turnaround glide on bars 4 (index 3) and 8 (index 7)
             glide = (bar_in_progression == 3 or bar_in_progression == 7)
