@@ -87,12 +87,14 @@ class MasteringChain:
         # 2. Normalize to competitive Trap loudness (-9 dB RMS target)
         audio = self._normalize_rms(audio)
 
-        # 3. Simple soft clipper/limiter to keep true peak < -0.3 dBFS
-        # A simple hyperbolic tangent (tanh) soft clipper scaled to the true peak limit
-        # audio / limit scales it so peak is 1, tanh keeps it < 1, then scale back to limit.
-        # To avoid heavy distortion on quiet parts, we only heavily affect peaks.
-        # Simple hard-clip fallback: np.clip(audio, -self.true_peak_linear, self.true_peak_linear)
-        # Using a soft clip:
-        audio = np.tanh(audio) * self.true_peak_linear
+        # 3. Apply a soft-knee saturation curve (np.tanh driven smoothly) to glue the mix
+        drive = 1.2
+        audio = np.tanh(audio * drive)
+
+        # 4. Normalize final output peak to -0.3 dBFS.
+        # We find the new absolute peak and scale it exactly to the true peak limit.
+        max_peak = np.max(np.abs(audio))
+        if max_peak > 0:
+            audio = (audio / max_peak) * self.true_peak_linear
 
         return audio
