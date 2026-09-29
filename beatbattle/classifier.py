@@ -9,24 +9,17 @@ import glob
 
 class SampleLibrary:
     """
-    Scans a root directory and maps specific sample folders to their audio files.
+    Scans a root directory (flat or nested) and maps files to sample roles based on keywords.
     """
 
-    REQUIRED_FOLDERS = [
-        "808s", "kicks", "claps", "snares", "hihats", "openhats",
-        "percs_1", "percs_2", "synths_1", "synths_2", "synths_3",
-        "fx_1", "fx_2", "Vox"
-    ]
-
-    CRITICAL_DRUMS = ["kicks", "808s", "hihats"]  # snares or claps are also critical, handled in logic
-    SYNTH_FOLDERS = ["synths_1", "synths_2", "synths_3"]
+    CRITICAL_DRUMS = ["kicks", "808s", "hihats", "snares"]
 
     def __init__(self, root_dir: str):
         """
         Initializes the SampleLibrary and maps available files.
 
         Args:
-            root_dir: The root directory containing the sample folders.
+            root_dir: The root directory containing the sample files.
         """
         self.root_dir = root_dir
         self.library: Dict[str, str] = {}
@@ -34,36 +27,67 @@ class SampleLibrary:
         self._validate_library()
 
     def _load_samples(self) -> None:
-        """Loads the first .mp3 file found in each defined folder."""
-        for folder in self.REQUIRED_FOLDERS:
-            folder_path = os.path.join(self.root_dir, folder)
-            if os.path.isdir(folder_path):
-                # Grab the first mp3 file (case-insensitive globbing isn't built into glob directly,
-                # but we can check both common cases or use a regex-like approach)
-                mp3_files = glob.glob(os.path.join(folder_path, "*.mp3"))
-                mp3_files.extend(glob.glob(os.path.join(folder_path, "*.MP3")))
-                if mp3_files:
-                    self.library[folder] = sorted(mp3_files)[0]
+        """Recursively loads .mp3 files and classifies them by keyword."""
+        all_files = []
+        for dirpath, _, filenames in os.walk(self.root_dir):
+            for f in filenames:
+                if f.lower().endswith(".mp3"):
+                    all_files.append(os.path.join(dirpath, f))
+
+        # Sort files to ensure deterministic mapping (first matched file is kept)
+        all_files.sort()
+
+        for file_path in all_files:
+            file_name = os.path.basename(file_path).lower()
+            dir_name = os.path.basename(os.path.dirname(file_path)).lower()
+            search_str = f"{dir_name}_{file_name}"
+
+            # Map based on priority and keywords
+            if "808" in search_str or "bass" in search_str or "sub" in search_str:
+                self._add_to_library("808s", file_path)
+            elif "kick" in search_str or "bd" in search_str:
+                self._add_to_library("kicks", file_path)
+            elif "open" in search_str or "openhat" in search_str or "oh" in search_str:
+                self._add_to_library("open_hats", file_path)
+            elif "hihat" in search_str or "hi_hat" in search_str or "hat" in search_str or "hh" in search_str:
+                self._add_to_library("hihats", file_path)
+            elif "snare" in search_str or "clap" in search_str or "rim" in search_str or "sd" in search_str:
+                self._add_to_library("snares", file_path)
+            elif "perc" in search_str:
+                if "percs_1" not in self.library:
+                    self.library["percs_1"] = file_path
+                elif "percs_2" not in self.library:
+                    self.library["percs_2"] = file_path
+            elif "fx" in search_str or "riser" in search_str or "impact" in search_str:
+                # Naive split into fx_1, fx_2 based on what's available
+                if "fx_1" not in self.library:
+                    self._add_to_library("fx_1", file_path)
+                else:
+                    self._add_to_library("fx_2", file_path)
+            elif "vox" in search_str or "vocal" in search_str:
+                self._add_to_library("Vox", file_path)
+            elif any(kw in search_str for kw in ["loop", "melody", "sample", "synth", "pad", "flute"]):
+                self._add_to_library("melodies", file_path)
+
+    def _add_to_library(self, category: str, file_path: str):
+        """Adds to library if not already populated to keep the first match."""
+        if category not in self.library:
+            self.library[category] = file_path
 
     def _validate_library(self) -> None:
         """
-        Validates that critical drums and at least one synth exist.
+        Validates that critical drums and at least one melody exist.
         Raises ValueError or FileNotFoundError if missing.
         """
         if "808s" not in self.library:
-            raise FileNotFoundError("Strict 808s folder missing or contains no valid .mp3 file.")
+            raise FileNotFoundError("Missing 808s sample (no file matching '808', 'bass', or 'sub').")
 
         missing_critical = [drum for drum in self.CRITICAL_DRUMS if drum not in self.library]
-
-        if "snares" not in self.library and "claps" not in self.library:
-            missing_critical.append("snares/claps")
-
         if missing_critical:
             raise ValueError(f"Missing critical drums: {', '.join(missing_critical)}")
 
-        has_synth = any(synth in self.library for synth in self.SYNTH_FOLDERS)
-        if not has_synth:
-            raise ValueError("Missing at least one synth folder with a valid .mp3 file.")
+        if "melodies" not in self.library:
+            raise ValueError("Missing at least one melody/synth sample.")
 
     def get_sample(self, category: str) -> Optional[str]:
         """Gets the file path for a specific category."""

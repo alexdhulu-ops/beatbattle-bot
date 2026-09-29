@@ -53,18 +53,18 @@ class TrapArranger:
         for bar in range(self.total_bars):
             start_beat = bar * self.beats_per_bar
 
-            # Bars 1-4 (Intro): synths_1, claps on beat 3 on bars 3-4, fx_1 and dry Vox on bar 4
+            # Bars 1-4 (Intro): melodies, snares/claps on beat 3 on bars 3-4, fx_1 and dry Vox on bar 4
             if bar < 4:
-                add_event("synths_1", start_beat)
+                add_event("melodies", start_beat)
                 if bar >= 2: # Bars 3-4 (index 2-3)
-                    add_event("claps", start_beat + 2) # Beat 3
+                    add_event("snares", start_beat + 2) # Beat 3
                 if bar == 3: # Bar 4
                     add_event("fx_1", start_beat)
                     add_event("Vox", start_beat + 3.5) # Final half-beat
 
             # Bars 5-12 (Drop 1)
             elif 4 <= bar < 12:
-                add_event("synths_2", start_beat)
+                add_event("melodies", start_beat)
                 add_event("kicks", start_beat) # Kick on beat 1
 
                 # Vary kick syncopation based on seed
@@ -88,12 +88,11 @@ class TrapArranger:
                     add_event("hihats", start_beat + roll_start + 0.25)
                     add_event("hihats", start_beat + roll_start + 0.5)
 
-                add_event("openhats", start_beat + 1.5)
+                add_event("open_hats", start_beat + 1.5)
 
             # Bars 13-20 (Drop 2 / Variation)
             elif 12 <= bar < 20:
-                add_event("synths_2", start_beat)
-                add_event("synths_3", start_beat)
+                add_event("melodies", start_beat)
 
                 # Kick variation
                 add_event("kicks", start_beat)
@@ -113,7 +112,10 @@ class TrapArranger:
 
             # Bars 21-24 (Outro)
             elif 20 <= bar < 24:
-                add_event("synths_1", start_beat)
+                add_event("melodies", start_beat)
+                # Light percs on offbeat
+                add_event("percs_1", start_beat + 1.5)
+
                 if bar < 22: # Cut 808 and kicks at bar 23 (index 22)
                     add_event("kicks", start_beat)
                     add_event("808s", start_beat, metadata={"ducking": True})
