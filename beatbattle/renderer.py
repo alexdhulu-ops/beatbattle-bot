@@ -175,7 +175,7 @@ class AudioRenderer:
                         envelope = np.linspace(ducking_linear, 1.0, actual_decay_len)
                         audio_data[:, duck_start_sample:duck_end_sample] *= envelope
 
-            # Apply pitch-shifting and glide for 808s based on chord progression metadata
+            # Apply pitch-shifting, glide, and saturation for 808s based on metadata
             elif category == "808s":
                 audio_data = audio_data.copy()
                 metadata = event.get("metadata", {})
@@ -183,21 +183,33 @@ class AudioRenderer:
                 pitch_shift_semitones = metadata.get("pitch_shift", 0)
                 glide = metadata.get("glide", False)
 
+                # Apply soft-clipping saturation (gain drive -> tanh)
+                # Boost audible mid-harmonics on the 808
+                drive_linear = 2.5
+                audio_data = np.tanh(audio_data * drive_linear)
+
+                if glide:
+                    # Implement smooth 100-200ms pitch slide envelope.
+                    # A true pitch bend resamples audio dynamically over time.
+                    # For a simple turnaround slide up (e.g. +12 semitones), we can warp the time axis.
+                    glide_samples = int(0.150 * sr) # 150ms glide
+                    if audio_data.shape[1] > glide_samples:
+                        # Linear ramp from 0.5x speed (down an octave) to 1.0x (normal pitch)
+                        t_original = np.arange(glide_samples)
+                        t_warped = t_original ** 1.5 / (glide_samples ** 0.5)
+
+                        glided_chunk = np.zeros((2, glide_samples), dtype=np.float32)
+                        for ch in range(2):
+                            glided_chunk[ch] = np.interp(t_warped, t_original, audio_data[ch, :glide_samples])
+
+                        audio_data[:, :glide_samples] = glided_chunk
+
                 if pitch_shift_semitones != 0:
-                    # Resample to pitch shift (speed up / slow down)
-                    # ratio = 2 ** (-semitones / 12) -> if shifting UP by 2 semitones, length gets SHORTER
+                    # Resample to static pitch shift (speed up / slow down)
+                    # ratio = 2 ** (-semitones / 12) -> if shifting DOWN by 2 semitones, length gets LONGER
                     ratio = 2.0 ** (-pitch_shift_semitones / 12.0)
                     new_len = int(audio_data.shape[1] * ratio)
                     audio_data = scipy.signal.resample(audio_data, new_len, axis=1)
-
-                if glide:
-                    # Very simple simulated "glide" by pitch-bending the start of the sample
-                    # We create an envelope that ramps the resampling phase, but an easier way
-                    # is to just apply a quick pitch envelope if we had a synth.
-                    # Since it's audio, we can just apply a quick volume fade-in to simulate legato.
-                    fade_in_samples = int(0.1 * sr)
-                    if audio_data.shape[1] > fade_in_samples:
-                        audio_data[:, :fade_in_samples] *= np.linspace(0.0, 1.0, fade_in_samples)
 
             # Volume scaling for hihat velocity
             if "velocity" in event.get("metadata", {}):
@@ -210,9 +222,9 @@ class AudioRenderer:
                     if start_time_sec <= kt < start_time_sec + (audio_data.shape[1] / sr):
                         duck_start_sample = int((kt - start_time_sec) * sr)
 
-                        # Ducking params: -4dB is ~0.63 linear, 60ms decay
+                        # Ducking params: -4dB is ~0.63 linear, 80ms decay
                         ducking_linear = 10 ** (-4 / 20)
-                        decay_samples = int(0.06 * sr)
+                        decay_samples = int(0.08 * sr)
 
                         duck_end_sample = min(duck_start_sample + decay_samples, audio_data.shape[1])
                         actual_decay_len = duck_end_sample - duck_start_sample
