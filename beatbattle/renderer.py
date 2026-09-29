@@ -4,7 +4,6 @@ Audio stitching and DSP via Pedalboard.
 from typing import List, Dict, Any
 import numpy as np
 import soundfile as sf
-import pedalboard
 
 
 class AudioRenderer:
@@ -111,11 +110,11 @@ class AudioRenderer:
 
     def apply_dsp(self, audio: np.ndarray, effects_chain: List[Any]) -> np.ndarray:
         """
-        Applies a chain of DSP effects (via pedalboard) to audio data.
+        Applies a chain of native DSP effects to audio data.
 
         Args:
             audio: The input audio array.
-            effects_chain: A list of Pedalboard effects to apply.
+            effects_chain: A list of effects to apply.
 
         Returns:
             The processed audio array.
