@@ -4,6 +4,7 @@ Audio stitching and DSP via Pedalboard.
 from typing import List, Dict, Any
 import numpy as np
 import soundfile as sf
+import scipy.signal
 
 
 class AudioRenderer:
@@ -19,6 +20,43 @@ class AudioRenderer:
             sample_rate: The audio sample rate to use for rendering.
         """
         self.sample_rate = sample_rate
+
+    def _apply_biquad(self, audio: np.ndarray, b: np.ndarray, a: np.ndarray) -> np.ndarray:
+        """Applies a filter to stereo audio."""
+        filtered = np.zeros_like(audio)
+        for i in range(audio.shape[0]):
+            filtered[i] = scipy.signal.lfilter(b, a, audio[i])
+        return filtered
+
+    def _process_melody_dsp(self, audio: np.ndarray) -> np.ndarray:
+        """
+        Applies DSP to melody tracks:
+        1. High-pass filter (Butterworth 2nd order around 200 Hz).
+        2. Low-pass cut (Butterworth 2nd order around 7500 Hz).
+        3. Stereo widening (Haas effect, ~15ms delay on right channel).
+        """
+        nyq = 0.5 * self.sample_rate
+
+        # High-pass filter at 200 Hz
+        hp_cutoff = 200.0 / nyq
+        b_hp, a_hp = scipy.signal.butter(2, hp_cutoff, btype='high', analog=False)
+        audio = self._apply_biquad(audio, b_hp, a_hp)
+
+        # Low-pass filter at 7500 Hz
+        lp_cutoff = 7500.0 / nyq
+        b_lp, a_lp = scipy.signal.butter(2, lp_cutoff, btype='low', analog=False)
+        audio = self._apply_biquad(audio, b_lp, a_lp)
+
+        # Haas effect: delay right channel (channel 1) by ~15 ms
+        delay_ms = 15.0
+        delay_samples = int((delay_ms / 1000.0) * self.sample_rate)
+
+        # Pad and shift the right channel
+        right_channel = audio[1]
+        delayed_right = np.pad(right_channel, (delay_samples, 0), mode='constant')[:-delay_samples]
+        audio[1] = delayed_right
+
+        return audio
 
     def render_timeline(self, timeline: List[Dict[str, Any]]) -> np.ndarray:
         """
@@ -70,8 +108,28 @@ class AudioRenderer:
 
             audio_data, sr = sample_cache[file_path]
 
+            if category == "melodies":
+                audio_data = self._process_melody_dsp(audio_data.copy())
+
+                # Sidechain ducking for melodies triggered by kicks
+                for kt in kick_times:
+                    # If kick hits while melody is playing
+                    if start_time_sec <= kt < start_time_sec + (audio_data.shape[1] / sr):
+                        duck_start_sample = int((kt - start_time_sec) * sr)
+
+                        # Ducking params: -6dB is ~0.501 linear, 100ms decay
+                        ducking_linear = 10 ** (-6 / 20)
+                        decay_samples = int(0.100 * sr)
+
+                        duck_end_sample = min(duck_start_sample + decay_samples, audio_data.shape[1])
+                        actual_decay_len = duck_end_sample - duck_start_sample
+
+                        # Apply ducking envelope (fast attack, linear decay)
+                        envelope = np.linspace(ducking_linear, 1.0, actual_decay_len)
+                        audio_data[:, duck_start_sample:duck_end_sample] *= envelope
+
             # Very basic sidechain simulation for 808s
-            if category == "808s":
+            elif category == "808s":
                 audio_data = audio_data.copy()
                 for kt in kick_times:
                     # If kick hits while 808 is playing
