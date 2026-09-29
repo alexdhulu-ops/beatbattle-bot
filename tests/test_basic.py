@@ -27,7 +27,8 @@ def test_arranger_stub():
 
 def test_renderer_stub():
     r = renderer.AudioRenderer()
-    assert r.render_timeline([]) is None
+    # It now returns an actual np.ndarray instead of None
+    assert r.render_timeline([]) is not None
 
 
 def test_mastering_stub():
