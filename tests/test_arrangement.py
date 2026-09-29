@@ -44,7 +44,7 @@ def test_sample_library_loads_all(mock_library_dir):
     # Check that it mapped the expected roles
     expected_roles = [
         "808s", "kicks", "snares", "hihats", "open_hats",
-        "perc_oneshot", "perc_loop", "melodies", "fx_oneshot", "fx_texture", "vox_oneshot", "vox_loop"
+        "perc_oneshot", "perc_loop", "synth_loop_1", "fx_oneshot", "fx_texture", "vox_oneshot", "vox_loop"
     ]
     for role in expected_roles:
         assert role in library.library, f"Role {role} not mapped"
@@ -144,13 +144,13 @@ def test_short_melody_quantized_arpeggios(tmp_path):
         sf.write(str(file_path), data, sr, format=audio_format)
 
     library = SampleLibrary(str(root))
-    assert library.get_sample("melody_oneshot") is not None
-    assert library.get_sample("melodies") is None
+    assert library.get_sample("synth_oneshot_1") is not None
+    assert library.get_sample("synth_loop_1") is None
 
     arranger = TrapArranger()
     timeline = arranger.create_timeline(library)
 
-    short_melodies = [e for e in timeline if e["category"] == "melody_oneshot"]
+    short_melodies = [e for e in timeline if e["category"] == "synth_oneshot_1"]
 
     # Ensure it generated plenty of hits (e.g. at least 4 per drop/outro section, way more than 4 overall)
     assert len(short_melodies) >= 16

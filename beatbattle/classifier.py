@@ -73,24 +73,36 @@ class SampleLibrary:
                     self._add_to_library("vox_oneshot", file_path)
                 elif duration > 1.5:
                     self._add_to_library("vox_loop", file_path)
-            else:
-                # Default fallback for any non-drum/fx/vox sample: classify as melodic synth based on duration
+            elif "synth" in search_str:
                 duration = self._get_duration(file_path)
+
+                # We want to support layered synths, so we allow multiple slots
                 if duration < 0.5:
-                    self._add_to_library("melody_oneshot", file_path)
+                    # Stabs / Plucks
+                    if "synth_oneshot_1" not in self.library:
+                        self._add_to_library("synth_oneshot_1", file_path)
+                    elif "synth_oneshot_2" not in self.library:
+                        self._add_to_library("synth_oneshot_2", file_path)
+                    else:
+                        self._add_to_library("synth_oneshot_3", file_path)
                 else:
-                    self._add_to_library("melodies", file_path)
+                    # Leads / Pads
+                    if "synth_loop_1" not in self.library:
+                        self._add_to_library("synth_loop_1", file_path)
+                    elif "synth_loop_2" not in self.library:
+                        self._add_to_library("synth_loop_2", file_path)
+                    else:
+                        self._add_to_library("synth_loop_3", file_path)
 
-        # Log detected melodic files to console
-        melodic_files = []
-        if "melodies" in self.library:
-            melodic_files.append(f"Long Melody: {os.path.basename(self.library['melodies'])}")
-        if "melody_oneshot" in self.library:
-            melodic_files.append(f"Short Melody: {os.path.basename(self.library['melody_oneshot'])}")
+        # Log detected synth files to console
+        synth_files = []
+        for key, path in self.library.items():
+            if key.startswith("synth_"):
+                synth_files.append(f"{key}: {os.path.basename(path)}")
 
-        if melodic_files:
-            print("Detected Melodic/Synth Files:")
-            for f in melodic_files:
+        if synth_files:
+            print("Detected Synth Files:")
+            for f in synth_files:
                 print(f"  - {f}")
 
     def _get_duration(self, file_path: str) -> float:
@@ -117,8 +129,9 @@ class SampleLibrary:
         if missing_critical:
             raise ValueError(f"Missing critical drums: {', '.join(missing_critical)}")
 
-        if "melodies" not in self.library and "melody_oneshot" not in self.library:
-            raise ValueError("Missing at least one melody/synth sample.")
+        has_synth = any(k.startswith("synth_") for k in self.library.keys())
+        if not has_synth:
+            raise ValueError("Missing at least one synth sample.")
 
     def get_sample(self, category: str) -> Optional[str]:
         """Gets the file path for a specific category."""
