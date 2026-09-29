@@ -14,7 +14,7 @@ def mock_library_dir(tmp_path):
     root.mkdir()
 
     folders = [
-        "800s", "kicks", "claps", "snares", "hihats", "openhats",
+        "808s", "kicks", "claps", "snares", "hihats", "openhats",
         "percs_1", "percs_2", "synths_1", "synths_2", "synths_3",
         "fx_1", "fx_2", "Vox"
     ]

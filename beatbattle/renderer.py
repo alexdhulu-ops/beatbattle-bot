@@ -37,7 +37,7 @@ class AudioRenderer:
         # Main stereo buffer
         master_buffer = np.zeros((2, max_samples), dtype=np.float32)
 
-        # Find all kick times to trigger sidechain ducking on 800s
+        # Find all kick times to trigger sidechain ducking on 808s
         kick_times = [event["time"] for event in timeline if event.get("category") == "kicks"]
 
         # Cache loaded samples to avoid reading the same file multiple times
@@ -71,8 +71,8 @@ class AudioRenderer:
 
             audio_data, sr = sample_cache[file_path]
 
-            # Very basic sidechain simulation for 800s
-            if category == "800s":
+            # Very basic sidechain simulation for 808s
+            if category == "808s":
                 audio_data = audio_data.copy()
                 for kt in kick_times:
                     # If kick hits while 808 is playing

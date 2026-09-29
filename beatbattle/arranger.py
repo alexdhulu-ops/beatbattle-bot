@@ -69,8 +69,8 @@ class TrapArranger:
                 add_event("kicks", start_beat + kick_sync_pos)
 
                 # 808s with ducking metadata matching kicks
-                add_event("800s", start_beat, metadata={"ducking": True})
-                add_event("800s", start_beat + kick_sync_pos, metadata={"ducking": True})
+                add_event("808s", start_beat, metadata={"ducking": True})
+                add_event("808s", start_beat + kick_sync_pos, metadata={"ducking": True})
 
                 add_event("snares", start_beat + 2) # Snare on beat 3
 
@@ -97,7 +97,7 @@ class TrapArranger:
                 add_event("kicks", start_beat + 1.5)
                 add_event("kicks", start_beat + 3.5)
 
-                add_event("800s", start_beat, metadata={"ducking": True})
+                add_event("808s", start_beat, metadata={"ducking": True})
 
                 add_event("snares", start_beat + 2)
 
@@ -113,7 +113,7 @@ class TrapArranger:
                 add_event("synths_1", start_beat)
                 if bar < 22: # Cut 808 and kicks at bar 23 (index 22)
                     add_event("kicks", start_beat)
-                    add_event("800s", start_beat, metadata={"ducking": True})
+                    add_event("808s", start_beat, metadata={"ducking": True})
 
                 if bar == 23: # Bar 24 trigger fx_2
                     add_event("fx_2", start_beat)

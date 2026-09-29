@@ -13,12 +13,12 @@ class SampleLibrary:
     """
 
     REQUIRED_FOLDERS = [
-        "800s", "kicks", "claps", "snares", "hihats", "openhats",
+        "808s", "kicks", "claps", "snares", "hihats", "openhats",
         "percs_1", "percs_2", "synths_1", "synths_2", "synths_3",
         "fx_1", "fx_2", "Vox"
     ]
 
-    CRITICAL_DRUMS = ["kicks", "800s", "hihats"]  # snares or claps are also critical, handled in logic
+    CRITICAL_DRUMS = ["kicks", "808s", "hihats"]  # snares or claps are also critical, handled in logic
     SYNTH_FOLDERS = ["synths_1", "synths_2", "synths_3"]
 
     def __init__(self, root_dir: str):
@@ -36,12 +36,24 @@ class SampleLibrary:
     def _load_samples(self) -> None:
         """Loads the first .wav file found in each defined folder."""
         for folder in self.REQUIRED_FOLDERS:
-            folder_path = os.path.join(self.root_dir, folder)
-            if os.path.isdir(folder_path):
-                # Grab the first wav file
-                wav_files = glob.glob(os.path.join(folder_path, "*.wav"))
-                if wav_files:
-                    self.library[folder] = sorted(wav_files)[0]
+            # Fallback mechanism for 808s
+            if folder == "808s":
+                possible_names = ["808s", "800s", "808"]
+                for name in possible_names:
+                    folder_path = os.path.join(self.root_dir, name)
+                    if os.path.isdir(folder_path):
+                        wav_files = glob.glob(os.path.join(folder_path, "*.wav"))
+                        if wav_files:
+                            # Map to the primary key "808s" regardless of what it was named
+                            self.library[folder] = sorted(wav_files)[0]
+                            break
+            else:
+                folder_path = os.path.join(self.root_dir, folder)
+                if os.path.isdir(folder_path):
+                    # Grab the first wav file
+                    wav_files = glob.glob(os.path.join(folder_path, "*.wav"))
+                    if wav_files:
+                        self.library[folder] = sorted(wav_files)[0]
 
     def _validate_library(self) -> None:
         """
