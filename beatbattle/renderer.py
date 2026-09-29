@@ -244,23 +244,24 @@ class AudioRenderer:
                 "open_hats": -14.0,
                 "perc_oneshot": -16.0, # -10.0 relative to kick
                 "perc_loop": -16.0,
-                "melodies": -8.0, # -2.0 relative to kick (brought up significantly for presence)
-                "melody_oneshot": -8.0, # Present and punchy short synths
                 "vox_oneshot": -18.0, # -12.0 relative to kick
                 "vox_loop": -18.0,
                 "fx_oneshot": -18.0,
                 "fx_texture": -18.0
             }
-            if category in target_gains:
+
+            target_gain = -8.0 if category.startswith("synth_") else target_gains.get(category)
+
+            if target_gain is not None:
                 # Calculate current peak to normalize it, then apply target gain
                 current_peak = np.max(np.abs(audio_data))
                 if current_peak > 0:
                     audio_data = audio_data / current_peak
-                audio_data *= (10 ** (target_gains[category] / 20.0))
+                audio_data *= (10 ** (target_gain / 20.0))
 
             # Per-Track Corrective EQ
             nyq = 0.5 * sr
-            if category in ["melodies", "melody_oneshot", "perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
+            if category.startswith("synth_") or category in ["perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
                 b_hp, a_hp = scipy.signal.butter(2, 160.0 / nyq, btype='high', analog=False)
                 audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
             elif category == "808s":
@@ -274,16 +275,16 @@ class AudioRenderer:
                 b_hp, a_hp = scipy.signal.butter(2, 350.0 / nyq, btype='high', analog=False)
                 audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
 
-            if category in ["melodies", "melody_oneshot"]:
+            if category.startswith("synth_"):
                 audio_data = self._process_melody_dsp(audio_data.copy(), metadata)
 
-            # Length trimming for loops (melodies, vox_loop, perc_loop, fx_texture)
-            if "duration" in metadata and category in ["melodies", "vox_loop", "perc_loop", "fx_texture"]:
+            # Length trimming for loops (vox_loop, perc_loop, fx_texture, and synth_loop_X)
+            if "duration" in metadata and (category.startswith("synth_loop_") or category in ["vox_loop", "perc_loop", "fx_texture"]):
                 target_samples = int(metadata["duration"] * sr)
 
                 # If audio is shorter than target duration and it's a loop, we could time-stretch.
                 # A simple naive time-stretch via resampling (since full phase-vocoder is heavy for a stub)
-                if audio_data.shape[1] < target_samples and category != "melodies":
+                if audio_data.shape[1] < target_samples and not category.startswith("synth_loop_"):
                     audio_data = scipy.signal.resample(audio_data, target_samples, axis=1)
 
                 if audio_data.shape[1] > target_samples:
