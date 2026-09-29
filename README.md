@@ -1,2 +1,2 @@
 # beatbattle-bot
-An ai powered bot who plays beatbattle
+An algorithm who creates beats for beatbattle.
