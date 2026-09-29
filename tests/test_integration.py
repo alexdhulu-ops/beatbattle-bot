@@ -15,27 +15,29 @@ def mock_samples_dir(tmp_path):
 
     file_names = {
         "808_sub_bass.mp3": 1.0,
-        "hard_kick_01.mp3": 1.0,
-        "snare_clap_01.mp3": 1.0,
-        "closed_hihat_01.mp3": 1.0,
+        "hard_kick_01.ogg": 1.0,
+        "snare_clap_01.wav": 1.0,
+        "closed_hihat_01.OGG": 1.0,
         "openhat_01.mp3": 1.0,
         "perc_wood_01.mp3": 1.0,      # perc_oneshot
-        "perc_metal_loop.mp3": 2.0,   # perc_loop
+        "perc_metal_loop.ogg": 2.0,   # perc_loop
         "synth_melody_loop.mp3": 2.0,
         "riser_fx_impact.mp3": 1.0,   # fx_oneshot
-        "ambient_fx_texture.mp3": 2.0,# fx_texture
+        "ambient_fx_texture.ogg": 2.0,# fx_texture
         "vocal_chant_vox.mp3": 1.0,   # vox_oneshot
-        "vocal_hook_loop.mp3": 2.0    # vox_loop
+        "vocal_hook_loop.ogg": 2.0    # vox_loop
     }
 
     sr = 44100
     for fname, duration in file_names.items():
-        mp3_path = root / fname
+        ext = fname.split('.')[-1].upper()
+        audio_format = 'OGG' if ext == 'OGG' else ('WAV' if ext == 'WAV' else 'MP3')
+        file_path = root / fname
 
         # Generate random noise
         samples = int(sr * duration)
         data = np.random.uniform(-0.1, 0.1, samples).astype(np.float32)
-        sf.write(str(mp3_path), data, sr, format='MP3')
+        sf.write(str(file_path), data, sr, format=audio_format)
 
     return str(root)
 

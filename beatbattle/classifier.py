@@ -28,11 +28,12 @@ class SampleLibrary:
         self._validate_library()
 
     def _load_samples(self) -> None:
-        """Recursively loads .mp3 files and classifies them by keyword."""
+        """Recursively loads .mp3, .wav, and .ogg files and classifies them by keyword."""
         all_files = []
+        valid_extensions = (".mp3", ".wav", ".ogg")
         for dirpath, _, filenames in os.walk(self.root_dir):
             for f in filenames:
-                if f.lower().endswith(".mp3"):
+                if f.lower().endswith(valid_extensions):
                     all_files.append(os.path.join(dirpath, f))
 
         # Sort files to ensure deterministic mapping (first matched file is kept)
@@ -93,7 +94,7 @@ class SampleLibrary:
         Raises ValueError or FileNotFoundError if missing.
         """
         if "808s" not in self.library:
-            raise FileNotFoundError("Missing 808s sample (no file matching '808', 'bass', or 'sub').")
+            raise FileNotFoundError("Missing 808s sample (no valid audio file matching '808', 'bass', or 'sub').")
 
         missing_critical = [drum for drum in self.CRITICAL_DRUMS if drum not in self.library]
         if missing_critical:
