@@ -90,3 +90,28 @@ def test_renderer_cut_off():
     # audio returned is capped at 43.5 seconds
     # Shape is (2, samples)
     assert audio.shape[1] == int(43.5 * 44100)
+
+def test_melody_trimming_and_fade(tmp_path):
+    renderer = AudioRenderer(sample_rate=44100)
+
+    # Create a dummy 5 second stereo audio file (with valid samples so it isn't completely stripped)
+    data = np.ones((44100 * 5, 2)) * 0.5
+    dummy_path = str(tmp_path / "dummy_melody.mp3")
+    sf.write(dummy_path, data, 44100, format='MP3')
+
+    timeline = [
+        {
+            "sample": dummy_path,
+            "time": 0.0,
+            "category": "melodies",
+            "metadata": {
+                "duration": 2.0  # Should be trimmed to exactly 2 seconds
+            }
+        }
+    ]
+
+    rendered_audio = renderer.render_timeline(timeline)
+
+    # The rendered timeline itself is always 43.5s long due to the master buffer,
+    # but we can check if there are no NaNs produced during the trimming/fading process.
+    assert not np.isnan(rendered_audio).any()

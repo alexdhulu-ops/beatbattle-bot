@@ -142,6 +142,22 @@ class AudioRenderer:
             if category == "melodies":
                 audio_data = self._process_melody_dsp(audio_data.copy(), event.get("metadata"))
 
+                # Length trimming for melodies/synths
+                metadata = event.get("metadata", {})
+                if "duration" in metadata:
+                    target_samples = int(metadata["duration"] * sr)
+                    if audio_data.shape[1] > target_samples:
+                        audio_data = audio_data[:, :target_samples]
+
+                        # Apply a 50ms smooth fade-out at the cut point to prevent clicks
+                        fade_sec = 0.050
+                        fade_samples = int(fade_sec * sr)
+                        if audio_data.shape[1] > fade_samples:
+                            # Cosine fade out curve
+                            t = np.linspace(0, np.pi/2, fade_samples)
+                            fade_curve = np.cos(t)
+                            audio_data[:, -fade_samples:] *= fade_curve
+
                 # Sidechain ducking for melodies triggered by kicks
                 for kt in kick_times:
                     # If kick hits while melody is playing
