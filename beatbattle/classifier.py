@@ -36,30 +36,21 @@ class SampleLibrary:
     def _load_samples(self) -> None:
         """Loads the first .wav file found in each defined folder."""
         for folder in self.REQUIRED_FOLDERS:
-            # Fallback mechanism for 808s
-            if folder == "808s":
-                possible_names = ["808s", "800s", "808"]
-                for name in possible_names:
-                    folder_path = os.path.join(self.root_dir, name)
-                    if os.path.isdir(folder_path):
-                        wav_files = glob.glob(os.path.join(folder_path, "*.wav"))
-                        if wav_files:
-                            # Map to the primary key "808s" regardless of what it was named
-                            self.library[folder] = sorted(wav_files)[0]
-                            break
-            else:
-                folder_path = os.path.join(self.root_dir, folder)
-                if os.path.isdir(folder_path):
-                    # Grab the first wav file
-                    wav_files = glob.glob(os.path.join(folder_path, "*.wav"))
-                    if wav_files:
-                        self.library[folder] = sorted(wav_files)[0]
+            folder_path = os.path.join(self.root_dir, folder)
+            if os.path.isdir(folder_path):
+                # Grab the first wav file
+                wav_files = glob.glob(os.path.join(folder_path, "*.wav"))
+                if wav_files:
+                    self.library[folder] = sorted(wav_files)[0]
 
     def _validate_library(self) -> None:
         """
         Validates that critical drums and at least one synth exist.
-        Raises ValueError if missing.
+        Raises ValueError or FileNotFoundError if missing.
         """
+        if "808s" not in self.library:
+            raise FileNotFoundError("Strict 808s folder missing or contains no valid .wav file.")
+
         missing_critical = [drum for drum in self.CRITICAL_DRUMS if drum not in self.library]
 
         if "snares" not in self.library and "claps" not in self.library:
