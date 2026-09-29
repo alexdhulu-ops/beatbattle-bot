@@ -132,7 +132,7 @@ class AudioRenderer:
 
     def render_timeline(self, timeline: List[Dict[str, Any]]) -> np.ndarray:
         """
-        Renders a sequence of events into an audio array, with a hard cut at 43.5 seconds.
+        Renders a sequence of events into an audio array, with a hard cut at 45.5 seconds.
 
         Args:
             timeline: A list of events defining the song timeline.
@@ -140,7 +140,7 @@ class AudioRenderer:
         Returns:
             A numpy array representing the rendered audio (stereo, 44100Hz).
         """
-        max_duration_sec = 43.5
+        max_duration_sec = 45.5
         max_samples = int(max_duration_sec * self.sample_rate)
 
         # Main stereo buffer
@@ -250,7 +250,7 @@ class AudioRenderer:
                 "fx_texture": -18.0
             }
 
-            target_gain = -8.0 if category.startswith("synth_") else target_gains.get(category)
+            target_gain = -9.5 if category.startswith("synth_") else target_gains.get(category)
 
             if target_gain is not None:
                 # Calculate current peak to normalize it, then apply target gain
@@ -261,7 +261,10 @@ class AudioRenderer:
 
             # Per-Track Corrective EQ
             nyq = 0.5 * sr
-            if category.startswith("synth_") or category in ["perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
+            if category.startswith("synth_"):
+                b_hp, a_hp = scipy.signal.butter(2, 140.0 / nyq, btype='high', analog=False)
+                audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
+            elif category in ["perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
                 b_hp, a_hp = scipy.signal.butter(2, 160.0 / nyq, btype='high', analog=False)
                 audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
             elif category == "808s":

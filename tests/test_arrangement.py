@@ -89,13 +89,13 @@ def test_trap_arranger_timeline(mock_library_dir):
     assert len(snare_events) == 16
 
 def test_renderer_cut_off():
-    # Ensure renderer enforces max 43.5 seconds length
+    # Ensure renderer enforces max 45.5 seconds length
     renderer = AudioRenderer(sample_rate=44100)
     audio = renderer.render_timeline([])
 
-    # audio returned is capped at 43.5 seconds
+    # audio returned is capped at 45.5 seconds
     # Shape is (2, samples)
-    assert audio.shape[1] == int(43.5 * 44100)
+    assert audio.shape[1] == int(45.5 * 44100)
 
 def test_melody_trimming_and_fade(tmp_path):
     renderer = AudioRenderer(sample_rate=44100)

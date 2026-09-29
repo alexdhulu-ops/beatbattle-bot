@@ -67,9 +67,9 @@ def test_end_to_end_rendering(mock_samples_dir, tmp_path):
     # Read back
     data, sr = sf.read(str(output_path))
 
-    # Check duration (41.0 to 43.5 seconds)
+    # Check duration (41.0 to 45.5 seconds)
     duration = len(data) / sr
-    assert 41.0 <= duration <= 43.5
+    assert 41.0 <= duration <= 45.5
 
     # Check non-silence (RMS > 0 or max > 0)
     assert np.max(np.abs(data)) > 0.0001
