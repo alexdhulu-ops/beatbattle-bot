@@ -127,14 +127,15 @@ class TrapArranger:
             if bar == 0 or bar == 12:
                 safe_add("fx_texture", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "attenuate": -14.0})
 
-            # Bars 1-4 (Intro): melodies, snares/claps on beat 3 on bars 3-4, fx_1 and dry Vox on bar 4
+            # Bars 1-4 (Intro): melodies, snares/claps on beat 3 on bars 3-4, fx_oneshot, and dry Vox on bar 4
             if bar < 4:
                 if bar == 0:
+                    safe_add("fx_oneshot", start_beat) # Impact downbeat bar 1
                     safe_add("melodies", start_beat, metadata={"halftime": True, "filter_sweep": True, "duration": 4 * self.bar_duration_sec})
                 if bar >= 2: # Bars 3-4 (index 2-3)
                     safe_add("snares", start_beat + 2) # Beat 3
                 if bar == 3: # Bar 4
-                    safe_add("fx_oneshot", start_beat)
+                    safe_add("fx_oneshot", start_beat + 3) # Pre-drop transition bar 4 beat 4
                     safe_add("vox_oneshot", start_beat + 3.5, metadata={"pan": 0.5}) # Final half-beat panned right
 
             # Bars 5-12 (Drop 1)
@@ -182,6 +183,9 @@ class TrapArranger:
                 if bar == 12:
                     safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "filter_sweep": True})
                     safe_add("vox_loop", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "lpf": 5000, "attenuate": -14.0})
+
+                if bar == 15: # Bar 16
+                    safe_add("fx_oneshot", start_beat + 3) # Pre-drop transition bar 16 beat 4
 
                 # Light percussion, no 808s or kicks
                 safe_add("snares", start_beat + 2)
@@ -231,9 +235,6 @@ class TrapArranger:
                 if bar < 22: # Cut 808 and kicks at bar 23 (index 22)
                     safe_add("kicks", start_beat)
                     safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch})
-
-                if bar == 23: # Bar 24 trigger fx_oneshot
-                    safe_add("fx_oneshot", start_beat)
 
         return events
 
