@@ -15,7 +15,7 @@ def freq_to_midi(freq: float) -> float:
     return 69 + 12 * np.log2(freq / 440.0)
 
 
-def detect_fundamental_freq(audio: np.ndarray, sample_rate: int, fmin: float = 30.0, fmax: float = 500.0) -> float:
+def detect_fundamental_freq(audio: np.ndarray, sample_rate: int, fmin: float = 35.0, fmax: float = 90.0, required_confidence: float = 0.65) -> float:
     """
     Detects the fundamental frequency of an audio buffer using autocorrelation.
 
@@ -24,6 +24,7 @@ def detect_fundamental_freq(audio: np.ndarray, sample_rate: int, fmin: float = 3
         sample_rate: The sample rate of the audio data.
         fmin: The minimum frequency to search for.
         fmax: The maximum frequency to search for.
+        required_confidence: The required correlation confidence threshold.
 
     Returns:
         The detected fundamental frequency in Hz. Returns 0.0 if detection fails.
@@ -58,7 +59,7 @@ def detect_fundamental_freq(audio: np.ndarray, sample_rate: int, fmin: float = 3
         best_peak_val = corr_slice[best_peak_idx]
 
         # Confidence/peak-prominence check
-        if corr[0] > 0 and (best_peak_val / corr[0]) >= 0.6:
+        if corr[0] > 0 and (best_peak_val / corr[0]) >= required_confidence:
             lag = best_peak_idx + min_lag
             freq = sample_rate / lag
             return freq
