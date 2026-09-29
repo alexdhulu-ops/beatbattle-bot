@@ -13,9 +13,7 @@ dependencies = [
     "soundfile",
     "numpy",
     "scipy",
-    "typer",
-    "customtkinter",
-    "pygame"
+    "typer"
 ]
 
 [project.optional-dependencies]
@@ -25,4 +23,3 @@ dev = [
 
 [project.scripts]
 beatbattle = "beatbattle.cli:app"
-beatbattle-gui = "beatbattle.gui:main"
