@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "beatbattle"
+version = "0.1.0"
+description = "An ai powered bot who plays beatbattle"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "librosa",
+    "soundfile",
+    "numpy",
+    "scipy",
+    "pedalboard",
+    "typer"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
+[project.scripts]
+beatbattle = "beatbattle.cli:app"
