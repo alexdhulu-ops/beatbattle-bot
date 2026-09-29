@@ -50,78 +50,102 @@ class TrapArranger:
                     event["metadata"] = metadata
                 events.append(event)
 
+        # Simple 8-bar chord progression for 808s (in semitones relative to root)
+        chord_progression = [0, 0, -2, -2, -4, -4, -5, -5]
+
         for bar in range(self.total_bars):
             start_beat = bar * self.beats_per_bar
 
+            # Beat cut check: total beat cut on the last beat of bar 8 (index 7) and bar 16 (index 15)
+            def should_skip_beat(beat_time):
+                if bar in [7, 15] and (beat_time - start_beat) >= 3.0:
+                    return True
+                return False
+
+            def safe_add(category: str, beat_time: float, metadata: Dict[str, Any] = None):
+                if not should_skip_beat(beat_time):
+                    add_event(category, beat_time, metadata)
+
+            # Determine 808 pitch for this bar
+            bar_in_progression = bar % 8
+            current_pitch = chord_progression[bar_in_progression]
+
+            # Turnaround glide on bars 4 (index 3) and 8 (index 7)
+            glide = (bar_in_progression == 3 or bar_in_progression == 7)
+
             # Bars 1-4 (Intro): melodies, snares/claps on beat 3 on bars 3-4, fx_1 and dry Vox on bar 4
             if bar < 4:
-                add_event("melodies", start_beat)
+                safe_add("melodies", start_beat, metadata={"halftime": True, "filter_sweep": True})
                 if bar >= 2: # Bars 3-4 (index 2-3)
-                    add_event("snares", start_beat + 2) # Beat 3
+                    safe_add("snares", start_beat + 2) # Beat 3
                 if bar == 3: # Bar 4
-                    add_event("fx_1", start_beat)
-                    add_event("Vox", start_beat + 3.5) # Final half-beat
+                    safe_add("fx_1", start_beat)
+                    safe_add("Vox", start_beat + 3.5) # Final half-beat
 
             # Bars 5-12 (Drop 1)
             elif 4 <= bar < 12:
-                add_event("melodies", start_beat)
-                add_event("kicks", start_beat) # Kick on beat 1
+                safe_add("melodies", start_beat)
+                safe_add("kicks", start_beat) # Kick on beat 1
 
                 # Vary kick syncopation based on seed
                 kick_sync_pos = rng.choice([1.5, 2.5, 3.5])
-                add_event("kicks", start_beat + kick_sync_pos)
+                safe_add("kicks", start_beat + kick_sync_pos)
 
-                # 808s with ducking metadata matching kicks
-                add_event("808s", start_beat, metadata={"ducking": True})
-                add_event("808s", start_beat + kick_sync_pos, metadata={"ducking": True})
+                # 808s with ducking metadata matching kicks and pitch
+                safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
+                safe_add("808s", start_beat + kick_sync_pos, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
 
-                add_event("snares", start_beat + 2) # Snare on beat 3
+                safe_add("snares", start_beat + 2) # Snare on beat 3
 
                 # 1/8 hihats (every 0.5 beats)
                 for i in range(8):
-                    add_event("hihats", start_beat + i * 0.5)
+                    safe_add("hihats", start_beat + i * 0.5)
 
                 # Rolls on even bars
                 if bar % 2 == 1: # "Even" in 1-based indexing, odd in 0-based indexing
                     roll_start = rng.choice([2.0, 3.0, 3.25])
-                    add_event("hihats", start_beat + roll_start)
-                    add_event("hihats", start_beat + roll_start + 0.25)
-                    add_event("hihats", start_beat + roll_start + 0.5)
+                    # 1/32 rolls with velocity ramp
+                    safe_add("hihats", start_beat + roll_start, metadata={"velocity": 0.5})
+                    safe_add("hihats", start_beat + roll_start + 0.125, metadata={"velocity": 0.7})
+                    safe_add("hihats", start_beat + roll_start + 0.25, metadata={"velocity": 0.9})
+                    safe_add("hihats", start_beat + roll_start + 0.375, metadata={"velocity": 1.0})
 
-                add_event("open_hats", start_beat + 1.5)
+                safe_add("open_hats", start_beat + 1.5)
 
             # Bars 13-20 (Drop 2 / Variation)
             elif 12 <= bar < 20:
-                add_event("melodies", start_beat)
+                safe_add("melodies", start_beat)
 
                 # Kick variation
-                add_event("kicks", start_beat)
-                add_event("kicks", start_beat + 1.5)
-                add_event("kicks", start_beat + 3.5)
+                safe_add("kicks", start_beat)
+                safe_add("kicks", start_beat + 1.5)
+                safe_add("kicks", start_beat + 3.5)
 
-                add_event("808s", start_beat, metadata={"ducking": True})
+                safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
+                safe_add("808s", start_beat + 1.5, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
 
-                add_event("snares", start_beat + 2)
+                safe_add("snares", start_beat + 2)
 
-                # Aggressive hihat rolls
+                # Aggressive hihat rolls (1/16 triplets approximation and 1/32)
                 for i in range(16):
-                    add_event("hihats", start_beat + i * 0.25)
+                    vel = 0.5 + (i / 32.0) # velocity ramp
+                    safe_add("hihats", start_beat + i * 0.25, metadata={"velocity": vel})
 
-                add_event("percs_1", start_beat + 1.75)
-                add_event("percs_2", start_beat + 3.25)
+                safe_add("percs_1", start_beat + 1.75)
+                safe_add("percs_2", start_beat + 3.25)
 
             # Bars 21-24 (Outro)
             elif 20 <= bar < 24:
-                add_event("melodies", start_beat)
+                safe_add("melodies", start_beat)
                 # Light percs on offbeat
-                add_event("percs_1", start_beat + 1.5)
+                safe_add("percs_1", start_beat + 1.5)
 
                 if bar < 22: # Cut 808 and kicks at bar 23 (index 22)
-                    add_event("kicks", start_beat)
-                    add_event("808s", start_beat, metadata={"ducking": True})
+                    safe_add("kicks", start_beat)
+                    safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch})
 
                 if bar == 23: # Bar 24 trigger fx_2
-                    add_event("fx_2", start_beat)
+                    safe_add("fx_2", start_beat)
 
         return events
 
