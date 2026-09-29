@@ -139,6 +139,12 @@ class AudioRenderer:
 
             audio_data, sr = sample_cache[file_path]
 
+            # Mono Summing for Low-End (kicks, 808s)
+            if category in ["kicks", "808s"]:
+                mono = np.mean(audio_data, axis=0)
+                audio_data[0] = mono
+                audio_data[1] = mono
+
             metadata = event.get("metadata", {})
 
             # General effects: Panning
@@ -164,6 +170,46 @@ class AudioRenderer:
                 audio_data = audio_data.copy()
                 gain_linear = 10 ** (metadata["attenuate"] / 20.0)
                 audio_data *= gain_linear
+
+            # Base Target Gain Staging relative to kick (0.0 dB reference, target -6.0 dBFS)
+            # Normalizing individual track stems relative to each other:
+            target_gains = {
+                "kicks": -6.0,
+                "808s": -7.5, # -1.5 relative to kick
+                "snares": -8.0, # -2.0 relative to kick
+                "claps": -8.0,
+                "hihats": -14.0, # -8.0 relative to kick
+                "open_hats": -14.0,
+                "perc_oneshot": -16.0, # -10.0 relative to kick
+                "perc_loop": -16.0,
+                "melodies": -13.0, # -7.0 relative to kick
+                "vox_oneshot": -18.0, # -12.0 relative to kick
+                "vox_loop": -18.0,
+                "fx_oneshot": -18.0,
+                "fx_texture": -18.0
+            }
+            if category in target_gains:
+                # Calculate current peak to normalize it, then apply target gain
+                current_peak = np.max(np.abs(audio_data))
+                if current_peak > 0:
+                    audio_data = audio_data / current_peak
+                audio_data *= (10 ** (target_gains[category] / 20.0))
+
+            # Per-Track Corrective EQ
+            nyq = 0.5 * sr
+            if category in ["melodies", "perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
+                b_hp, a_hp = scipy.signal.butter(2, 160.0 / nyq, btype='high', analog=False)
+                audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
+            elif category == "808s":
+                b_hp, a_hp = scipy.signal.butter(2, 28.0 / nyq, btype='high', analog=False)
+                audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
+
+                # Gentle notch around 250 Hz (Q=1.0)
+                b_n, a_n = scipy.signal.iirnotch(250.0 / nyq, Q=1.0)
+                audio_data = self._apply_biquad(audio_data, b_n, a_n)
+            elif category in ["hihats", "open_hats"]:
+                b_hp, a_hp = scipy.signal.butter(2, 350.0 / nyq, btype='high', analog=False)
+                audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
 
             if category == "melodies":
                 audio_data = self._process_melody_dsp(audio_data.copy(), metadata)
