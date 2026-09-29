@@ -1,8 +1,68 @@
 """
 Sample analysis and tagging.
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import numpy as np
+import os
+import glob
+
+
+class SampleLibrary:
+    """
+    Scans a root directory and maps specific sample folders to their audio files.
+    """
+
+    REQUIRED_FOLDERS = [
+        "800s", "kicks", "claps", "snares", "hihats", "openhats",
+        "percs_1", "percs_2", "synths_1", "synths_2", "synths_3",
+        "fx_1", "fx_2", "Vox"
+    ]
+
+    CRITICAL_DRUMS = ["kicks", "800s", "hihats"]  # snares or claps are also critical, handled in logic
+    SYNTH_FOLDERS = ["synths_1", "synths_2", "synths_3"]
+
+    def __init__(self, root_dir: str):
+        """
+        Initializes the SampleLibrary and maps available files.
+
+        Args:
+            root_dir: The root directory containing the sample folders.
+        """
+        self.root_dir = root_dir
+        self.library: Dict[str, str] = {}
+        self._load_samples()
+        self._validate_library()
+
+    def _load_samples(self) -> None:
+        """Loads the first .wav file found in each defined folder."""
+        for folder in self.REQUIRED_FOLDERS:
+            folder_path = os.path.join(self.root_dir, folder)
+            if os.path.isdir(folder_path):
+                # Grab the first wav file
+                wav_files = glob.glob(os.path.join(folder_path, "*.wav"))
+                if wav_files:
+                    self.library[folder] = sorted(wav_files)[0]
+
+    def _validate_library(self) -> None:
+        """
+        Validates that critical drums and at least one synth exist.
+        Raises ValueError if missing.
+        """
+        missing_critical = [drum for drum in self.CRITICAL_DRUMS if drum not in self.library]
+
+        if "snares" not in self.library and "claps" not in self.library:
+            missing_critical.append("snares/claps")
+
+        if missing_critical:
+            raise ValueError(f"Missing critical drums: {', '.join(missing_critical)}")
+
+        has_synth = any(synth in self.library for synth in self.SYNTH_FOLDERS)
+        if not has_synth:
+            raise ValueError("Missing at least one synth folder with a valid .wav file.")
+
+    def get_sample(self, category: str) -> Optional[str]:
+        """Gets the file path for a specific category."""
+        return self.library.get(category)
 
 
 class SampleClassifier:
