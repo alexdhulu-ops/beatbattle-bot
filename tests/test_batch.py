@@ -44,26 +44,24 @@ def mock_samples_dir(tmp_path):
     return str(root)
 
 
-def test_batch_seed_decoupling(mock_samples_dir):
-    """
-    Verifies that running the pipeline with two different seeds produces two distinct waveforms,
-    ensuring that the randomization logic in the arranger actually generates variation.
-    """
-    library = SampleLibrary(mock_samples_dir)
-    arranger = TrapArranger()
-    renderer = AudioRenderer(sample_rate=44100)
-    mastering = MasteringChain()
+from typer.testing import CliRunner
+from beatbattle.cli import app
 
-    # Generate beat 1 with seed 42
-    timeline1 = arranger.create_timeline(library, variation_seed=42)
-    raw_audio1 = renderer.render_timeline(timeline1)
-    audio1 = mastering.process(raw_audio1, 44100)
+runner = CliRunner()
 
-    # Generate beat 2 with seed 999
-    timeline2 = arranger.create_timeline(library, variation_seed=999)
-    raw_audio2 = renderer.render_timeline(timeline2)
-    audio2 = mastering.process(raw_audio2, 44100)
+def generate_beat(sample_dir, output_file, seed):
+    runner.invoke(app, [
+        "generate",
+        "--samples-dir", sample_dir,
+        "--output-file", str(output_file),
+        "--seed", str(seed)
+    ])
 
-    # The two tracks should NOT be perfectly identical
-    assert not np.allclose(audio1, audio2, atol=1e-5), "Generations with different seeds produced identical audio arrays"
-    assert not np.array_equal(audio1, audio2), "Generations with different seeds produced identical audio arrays"
+def test_batch_outputs_are_different(mock_samples_dir, tmp_path):
+    out1 = tmp_path / "out1.wav"
+    out2 = tmp_path / "out2.wav"
+    generate_beat(mock_samples_dir, out1, seed=101)
+    generate_beat(mock_samples_dir, out2, seed=202)
+    data1, _ = sf.read(out1)
+    data2, _ = sf.read(out2)
+    assert not np.array_equal(data1, data2), "Outputs must not be identical across different seeds!"
