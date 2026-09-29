@@ -16,23 +16,25 @@ def mock_library_dir(tmp_path):
     # Flat directory file names mapped to the keywords required
     file_names = {
         "808_sub_bass.mp3": 1.0,
-        "hard_kick_01.mp3": 1.0,
-        "snare_clap_01.mp3": 1.0,
-        "closed_hihat_01.mp3": 1.0,
+        "hard_kick_01.ogg": 1.0,
+        "snare_clap_01.wav": 1.0,
+        "closed_hihat_01.OGG": 1.0,
         "openhat_01.mp3": 1.0,
         "perc_wood_01.mp3": 1.0,      # perc_oneshot
-        "perc_metal_loop.mp3": 2.0,   # perc_loop
+        "perc_metal_loop.ogg": 2.0,   # perc_loop
         "synth_melody_loop.mp3": 2.0,
         "riser_fx_impact.mp3": 1.0,   # fx_oneshot
-        "ambient_fx_texture.mp3": 2.0,# fx_texture
+        "ambient_fx_texture.ogg": 2.0,# fx_texture
         "vocal_chant_vox.mp3": 1.0,   # vox_oneshot
-        "vocal_hook_loop.mp3": 2.0    # vox_loop
+        "vocal_hook_loop.ogg": 2.0    # vox_loop
     }
 
     for fname, duration in file_names.items():
-        mp3_path = root / fname
+        ext = fname.split('.')[-1].upper()
+        audio_format = 'OGG' if ext == 'OGG' else ('WAV' if ext == 'WAV' else 'MP3')
+        file_path = root / fname
         data = np.zeros(int(44100 * duration))
-        sf.write(mp3_path, data, 44100, format='MP3')
+        sf.write(file_path, data, 44100, format=audio_format)
 
     return str(root)
 
@@ -46,7 +48,8 @@ def test_sample_library_loads_all(mock_library_dir):
     ]
     for role in expected_roles:
         assert role in library.library, f"Role {role} not mapped"
-        assert library.get_sample(role).endswith(".mp3")
+        sample_path = library.get_sample(role).lower()
+        assert sample_path.endswith(".mp3") or sample_path.endswith(".ogg") or sample_path.endswith(".wav")
 
 def test_trap_arranger_timeline(mock_library_dir):
     library = SampleLibrary(mock_library_dir)
