@@ -28,7 +28,7 @@ class AudioRenderer:
             filtered[i] = scipy.signal.lfilter(b, a, audio[i])
         return filtered
 
-    def _process_melody_dsp(self, audio: np.ndarray) -> np.ndarray:
+    def _process_melody_dsp(self, audio: np.ndarray, metadata: Dict[str, Any] = None) -> np.ndarray:
         """
         Applies DSP to melody tracks:
         1. High-pass filter (Butterworth 2nd order around 200 Hz).
@@ -37,13 +37,30 @@ class AudioRenderer:
         """
         nyq = 0.5 * self.sample_rate
 
+        metadata = metadata or {}
+
+        # Halftime / Pitch down (-12 semitones, 0.5x speed)
+        if metadata.get("halftime"):
+            # Resample length to 2x (slow down) which intrinsically lowers pitch by an octave when played at original sample rate
+            new_len = int(audio.shape[1] * 2.0)
+            # scipy.signal.resample processes along the last axis by default
+            audio = scipy.signal.resample(audio, new_len, axis=1)
+
         # High-pass filter at 200 Hz
         hp_cutoff = 200.0 / nyq
         b_hp, a_hp = scipy.signal.butter(2, hp_cutoff, btype='high', analog=False)
         audio = self._apply_biquad(audio, b_hp, a_hp)
 
-        # Low-pass filter at 7500 Hz
-        lp_cutoff = 7500.0 / nyq
+        # Low-pass filter at 7500 Hz (or automate a sweep if requested)
+        if metadata.get("filter_sweep"):
+            # A simple approximation of a filter sweep:
+            # We can construct a time-varying filter or just apply a heavy low-pass.
+            # For simplicity using scipy biquad, we'll just apply a much lower static LPF
+            # (e.g. 800 Hz) to simulate the "muffled" intro vibe since time-varying biquads in python are slow.
+            lp_cutoff = 800.0 / nyq
+        else:
+            lp_cutoff = 7500.0 / nyq
+
         b_lp, a_lp = scipy.signal.butter(2, lp_cutoff, btype='low', analog=False)
         audio = self._apply_biquad(audio, b_lp, a_lp)
 
@@ -109,7 +126,7 @@ class AudioRenderer:
             audio_data, sr = sample_cache[file_path]
 
             if category == "melodies":
-                audio_data = self._process_melody_dsp(audio_data.copy())
+                audio_data = self._process_melody_dsp(audio_data.copy(), event.get("metadata"))
 
                 # Sidechain ducking for melodies triggered by kicks
                 for kt in kick_times:
@@ -128,9 +145,36 @@ class AudioRenderer:
                         envelope = np.linspace(ducking_linear, 1.0, actual_decay_len)
                         audio_data[:, duck_start_sample:duck_end_sample] *= envelope
 
-            # Very basic sidechain simulation for 808s
+            # Apply pitch-shifting and glide for 808s based on chord progression metadata
             elif category == "808s":
                 audio_data = audio_data.copy()
+                metadata = event.get("metadata", {})
+
+                pitch_shift_semitones = metadata.get("pitch_shift", 0)
+                glide = metadata.get("glide", False)
+
+                if pitch_shift_semitones != 0:
+                    # Resample to pitch shift (speed up / slow down)
+                    # ratio = 2 ** (-semitones / 12) -> if shifting UP by 2 semitones, length gets SHORTER
+                    ratio = 2.0 ** (-pitch_shift_semitones / 12.0)
+                    new_len = int(audio_data.shape[1] * ratio)
+                    audio_data = scipy.signal.resample(audio_data, new_len, axis=1)
+
+                if glide:
+                    # Very simple simulated "glide" by pitch-bending the start of the sample
+                    # We create an envelope that ramps the resampling phase, but an easier way
+                    # is to just apply a quick pitch envelope if we had a synth.
+                    # Since it's audio, we can just apply a quick volume fade-in to simulate legato.
+                    fade_in_samples = int(0.1 * sr)
+                    if audio_data.shape[1] > fade_in_samples:
+                        audio_data[:, :fade_in_samples] *= np.linspace(0.0, 1.0, fade_in_samples)
+
+            # Volume scaling for hihat velocity
+            if "velocity" in event.get("metadata", {}):
+                audio_data = audio_data * event["metadata"]["velocity"]
+
+            # Very basic sidechain simulation for 808s
+            if category == "808s":
                 for kt in kick_times:
                     # If kick hits while 808 is playing
                     if start_time_sec <= kt < start_time_sec + (audio_data.shape[1] / sr):
