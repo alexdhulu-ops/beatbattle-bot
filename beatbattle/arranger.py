@@ -96,6 +96,9 @@ class TrapArranger:
         # In natural minor: Minor 6th = 8 semitones (or -4), Minor 7th = 10 semitones (or -2)
         chord_progression = [0, 0, 8, 8, 10, 10, 0, 0]
 
+        main_hihat_pan = rng.choice([-0.2, 0.2])
+        opposite_perc_pan = -main_hihat_pan
+
         for bar in range(self.total_bars):
             start_beat = bar * self.beats_per_bar
 
@@ -130,8 +133,17 @@ class TrapArranger:
             # Bars 1-4 (Intro): melodies, snares/claps on beat 3 on bars 3-4, fx_oneshot, and dry Vox on bar 4
             if bar < 4:
                 if bar == 0:
+                    intro_metadata = {"halftime": True, "duration": 4 * self.bar_duration_sec}
+                    if rng.random() < 0.50:
+                        intro_metadata["filter_sweep_intro"] = True
+                    else:
+                        intro_metadata["filter_sweep"] = True # Static muffled fallback
+
+                    if rng.random() < 0.33:
+                        intro_metadata["tape_stop"] = True
+
                     safe_add("fx_oneshot", start_beat) # Impact downbeat bar 1
-                    safe_add("melodies", start_beat, metadata={"halftime": True, "filter_sweep": True, "duration": 4 * self.bar_duration_sec})
+                    safe_add("melodies", start_beat, metadata=intro_metadata)
                 if bar >= 2: # Bars 3-4 (index 2-3)
                     safe_add("snares", start_beat + 2) # Beat 3
                 if bar == 3: # Bar 4
@@ -160,23 +172,23 @@ class TrapArranger:
 
                 # 1/8 hihats (every 0.5 beats)
                 for i in range(8):
-                    safe_add("hihats", start_beat + i * 0.5)
+                    safe_add("hihats", start_beat + i * 0.5, metadata={"pan": main_hihat_pan})
 
                 # Rolls on even bars
                 if bar % 2 == 1: # "Even" in 1-based indexing, odd in 0-based indexing
                     roll_start = rng.choice([2.0, 3.0, 3.25])
-                    # 1/32 rolls with velocity ramp
-                    safe_add("hihats", start_beat + roll_start, metadata={"velocity": 0.5})
-                    safe_add("hihats", start_beat + roll_start + 0.125, metadata={"velocity": 0.7})
-                    safe_add("hihats", start_beat + roll_start + 0.25, metadata={"velocity": 0.9})
-                    safe_add("hihats", start_beat + roll_start + 0.375, metadata={"velocity": 1.0})
+                    # 1/32 rolls with velocity ramp and alternating panning
+                    safe_add("hihats", start_beat + roll_start, metadata={"velocity": 0.5, "pan": -0.8})
+                    safe_add("hihats", start_beat + roll_start + 0.125, metadata={"velocity": 0.7, "pan": 0.8})
+                    safe_add("hihats", start_beat + roll_start + 0.25, metadata={"velocity": 0.9, "pan": -0.8})
+                    safe_add("hihats", start_beat + roll_start + 0.375, metadata={"velocity": 1.0, "pan": 0.8})
 
-                safe_add("open_hats", start_beat + 1.5)
+                safe_add("open_hats", start_beat + 1.5, metadata={"pan": main_hihat_pan})
 
                 # Syncopated ghost hits and vocals
                 if is_turnaround:
                     safe_add("vox_oneshot", start_beat + 2.5, metadata={"pan": -0.5, "pitch_shift": tonal_oneshots_shift.get("vox_oneshot", 0)})
-                    safe_add("perc_oneshot", start_beat + 3.75, metadata={"pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
+                    safe_add("perc_oneshot", start_beat + 3.75, metadata={"pan": opposite_perc_pan, "pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
 
             # Bars 13-16 (Breakdown)
             elif 12 <= bar < 16:
@@ -189,11 +201,11 @@ class TrapArranger:
 
                 # Light percussion, no 808s or kicks
                 safe_add("snares", start_beat + 2)
-                safe_add("perc_oneshot", start_beat + 1.75, metadata={"pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
+                safe_add("perc_oneshot", start_beat + 1.75, metadata={"pan": opposite_perc_pan, "pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
 
                 # Sparse hihats
                 for i in range(4):
-                    safe_add("hihats", start_beat + i * 1.0)
+                    safe_add("hihats", start_beat + i * 1.0, metadata={"pan": main_hihat_pan})
 
             # Bars 17-20 (Second Hard Drop)
             elif 16 <= bar < 20:
@@ -217,10 +229,11 @@ class TrapArranger:
                 # Alternating behavior
                 for i in range(16):
                     vel = 0.5 + (i / 32.0) # velocity ramp
-                    safe_add("hihats", start_beat + i * 0.25, metadata={"velocity": vel})
+                    pan_val = -0.8 if i % 2 == 0 else 0.8
+                    safe_add("hihats", start_beat + i * 0.25, metadata={"velocity": vel, "pan": pan_val})
 
-                safe_add("perc_oneshot", start_beat + 1.75, metadata={"pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
-                safe_add("perc_oneshot", start_beat + 3.25, metadata={"pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
+                safe_add("perc_oneshot", start_beat + 1.75, metadata={"pan": opposite_perc_pan, "pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
+                safe_add("perc_oneshot", start_beat + 3.25, metadata={"pan": opposite_perc_pan, "pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
 
                 if is_turnaround:
                     safe_add("vox_oneshot", start_beat + 3.5, metadata={"pan": 0.5, "pitch_shift": tonal_oneshots_shift.get("vox_oneshot", 0)})
@@ -230,7 +243,7 @@ class TrapArranger:
                 if bar == 20:
                     safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec})
                 # Light percs on offbeat
-                safe_add("perc_oneshot", start_beat + 1.5, metadata={"pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
+                safe_add("perc_oneshot", start_beat + 1.5, metadata={"pan": opposite_perc_pan, "pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
 
                 if bar < 22: # Cut 808 and kicks at bar 23 (index 22)
                     safe_add("kicks", start_beat)

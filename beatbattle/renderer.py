@@ -51,18 +51,38 @@ class AudioRenderer:
         b_hp, a_hp = scipy.signal.butter(2, hp_cutoff, btype='high', analog=False)
         audio = self._apply_biquad(audio, b_hp, a_hp)
 
-        # Low-pass filter at 7500 Hz (or automate a sweep if requested)
-        if metadata.get("filter_sweep"):
-            # A simple approximation of a filter sweep:
-            # We can construct a time-varying filter or just apply a heavy low-pass.
-            # For simplicity using scipy biquad, we'll just apply a much lower static LPF
-            # (e.g. 800 Hz) to simulate the "muffled" intro vibe since time-varying biquads in python are slow.
-            lp_cutoff = 800.0 / nyq
-        else:
-            lp_cutoff = 7500.0 / nyq
+        # Low-pass filter (or automate a sweep if requested)
+        if metadata.get("filter_sweep_intro"):
+            # Implement a chunked time-varying low-pass filter (sweeping from ~800 Hz to 20 kHz)
+            num_chunks = max(1, audio.shape[1] // (self.sample_rate // 10)) # ~10 chunks per second
+            chunk_size = audio.shape[1] // num_chunks
 
-        b_lp, a_lp = scipy.signal.butter(2, lp_cutoff, btype='low', analog=False)
-        audio = self._apply_biquad(audio, b_lp, a_lp)
+            filtered_audio = np.zeros_like(audio)
+
+            # Exponentially spaced frequencies for a natural sweep feel
+            freqs = np.geomspace(800.0, 20000.0, num_chunks)
+
+            for i in range(num_chunks):
+                start = i * chunk_size
+                end = start + chunk_size if i < num_chunks - 1 else audio.shape[1]
+
+                chunk = audio[:, start:end]
+
+                cutoff = min(freqs[i], nyq - 1.0) / nyq
+                b_lp, a_lp = scipy.signal.butter(2, cutoff, btype='low', analog=False)
+
+                filtered_chunk = self._apply_biquad(chunk, b_lp, a_lp)
+                filtered_audio[:, start:end] = filtered_chunk
+
+            audio = filtered_audio
+        else:
+            if metadata.get("filter_sweep"):
+                lp_cutoff = 800.0 / nyq
+            else:
+                lp_cutoff = 7500.0 / nyq
+
+            b_lp, a_lp = scipy.signal.butter(2, lp_cutoff, btype='low', analog=False)
+            audio = self._apply_biquad(audio, b_lp, a_lp)
 
         # Haas effect: delay right channel (channel 1) by ~15 ms
         delay_ms = 15.0
@@ -72,6 +92,41 @@ class AudioRenderer:
         right_channel = audio[1]
         delayed_right = np.pad(right_channel, (delay_samples, 0), mode='constant')[:-delay_samples]
         audio[1] = delayed_right
+
+        # Pre-drop Tape-stop effect
+        if metadata.get("tape_stop"):
+            # Apply tape stop (pitch/speed deceleration) to the last beat
+            # Assumes 140 BPM -> beat duration = 60/140 ~ 0.428s
+            # For robustness, just grab the last ~0.5 seconds if available
+            tail_sec = min(0.5, audio.shape[1] / self.sample_rate)
+            tail_samples = int(tail_sec * self.sample_rate)
+
+            if tail_samples > 1000:
+                body_samples = audio.shape[1] - tail_samples
+
+                # We need to stretch/decelerate the tail chunk.
+                # A simple interpolation over a warped time axis simulates tape stop
+                tail_chunk = audio[:, body_samples:]
+
+                # t_original maps [0, tail_samples] linearly
+                t_original = np.arange(tail_samples)
+
+                # By applying an exponential or power curve > 1 to the readout index,
+                # we sample increasingly sparsely, simulating slowing down
+                # For an extreme tape stop, power = 2 or 3.
+                t_warped = (t_original / (tail_samples - 1)) ** 2.5 * (tail_samples - 1)
+
+                stopped_chunk = np.zeros_like(tail_chunk)
+                for ch in range(2):
+                    stopped_chunk[ch] = np.interp(t_warped, t_original, tail_chunk[ch])
+
+                # To complete the tape stop effect, quickly fade out the very end
+                fade_out_samples = int(0.05 * self.sample_rate)
+                if fade_out_samples < tail_samples:
+                    fade_curve = np.linspace(1.0, 0.0, fade_out_samples)
+                    stopped_chunk[:, -fade_out_samples:] *= fade_curve
+
+                audio[:, body_samples:] = stopped_chunk
 
         return audio
 
