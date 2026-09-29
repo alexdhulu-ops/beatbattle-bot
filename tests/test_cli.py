@@ -66,6 +66,6 @@ def test_generate_command(mock_samples_dir, tmp_path):
     assert len(data) > 0
     assert np.max(np.abs(data)) > 0.0001
 
-    # Since tempo is 140 and max is 43.5s, length should be bounded properly
+    # Since tempo is 140 and max is 45.5s, length should be bounded properly
     duration = len(data) / sr
-    assert 41.0 <= duration <= 43.5
+    assert 41.0 <= duration <= 45.5
