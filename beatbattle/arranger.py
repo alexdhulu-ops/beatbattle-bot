@@ -53,6 +53,7 @@ class TrapArranger:
         """
         import random
         rng = random.Random(variation_seed)
+        np.random.seed(variation_seed)
         events = []
 
         # Detect root keys to align 808s and tonal one-shots to the melody
