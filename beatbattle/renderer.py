@@ -196,7 +196,9 @@ class AudioRenderer:
                 # For simplicity in this engine, we will assume sf.read loads them, but we enforce shape.
                 sample_cache[file_path] = (data, sr)
 
+            # ALWAYS copy from the cache to prevent permanent mutation of cached audio arrays
             audio_data, sr = sample_cache[file_path]
+            audio_data = audio_data.copy()
 
             # Mono Summing for Low-End (kicks, 808s)
             if category in ["kicks", "808s"]:
