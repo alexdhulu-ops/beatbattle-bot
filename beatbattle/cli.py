@@ -5,6 +5,8 @@ import typer
 from typing import Optional
 import time
 import os
+import random
+import numpy as np
 import soundfile as sf
 from rich.console import Console
 from rich.prompt import Prompt
@@ -54,9 +56,15 @@ def generate(
     if base_name.endswith(".wav"):
         base_name = base_name[:-4]
 
+    base_seed = random.randint(1, 1_000_000)
+
     for i in range(1, batch + 1):
+        current_seed = base_seed + i
+        random.seed(current_seed)
+        np.random.seed(current_seed)
+
         console.print(f"Generating Trap timeline {i}/{batch}...")
-        timeline = arranger.create_timeline(library, variation_seed=i)
+        timeline = arranger.create_timeline(library, variation_seed=current_seed)
 
         console.print(f"Rendering audio and applying mastering {i}/{batch}...")
         raw_audio = renderer.render_timeline(timeline)
