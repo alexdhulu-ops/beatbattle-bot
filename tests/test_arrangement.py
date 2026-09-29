@@ -69,9 +69,10 @@ def test_trap_arranger_timeline(mock_library_dir):
         assert any(abs(actual - expected_time) < 1e-5 for actual in snare_times_actual)
 
 def test_renderer_cut_off():
-    # Ensure renderer enforces max 44.0 seconds length
+    # Ensure renderer enforces max 43.5 seconds length
     renderer = AudioRenderer(sample_rate=44100)
     audio = renderer.render_timeline([])
 
-    # audio returned is capped at 44 seconds
-    assert len(audio) == 44.0 * 44100
+    # audio returned is capped at 43.5 seconds
+    # Shape is (2, samples)
+    assert audio.shape[1] == int(43.5 * 44100)

@@ -22,17 +22,20 @@ class TrapArranger:
         self.bar_duration_sec = self.beat_duration_sec * self.beats_per_bar
         self.total_duration_seconds = self.bar_duration_sec * self.total_bars
 
-    def create_timeline(self, library: Any) -> List[Dict[str, Any]]:
+    def create_timeline(self, library: Any, variation_seed: int = 1) -> List[Dict[str, Any]]:
         """
         Creates a 24-bar Trap timeline mapping samples from the SampleLibrary.
 
         Args:
             library: An instance of SampleLibrary.
+            variation_seed: An integer seed to vary kick syncopations and hihat rolls.
 
         Returns:
             A full timeline of events for the song. Each event is a dict containing
             at least 'sample', 'time', and potentially 'metadata'.
         """
+        import random
+        rng = random.Random(variation_seed)
         events = []
 
         def add_event(category: str, beat_time: float, metadata: Dict[str, Any] = None):
@@ -60,11 +63,14 @@ class TrapArranger:
             elif 4 <= bar < 12:
                 add_event("synths_2", start_beat)
                 add_event("kicks", start_beat) # Kick on beat 1
-                add_event("kicks", start_beat + 2.5) # Syncopated kick
 
-                # 808s with ducking metadata
+                # Vary kick syncopation based on seed
+                kick_sync_pos = rng.choice([1.5, 2.5, 3.5])
+                add_event("kicks", start_beat + kick_sync_pos)
+
+                # 808s with ducking metadata matching kicks
                 add_event("800s", start_beat, metadata={"ducking": True})
-                add_event("800s", start_beat + 2.5, metadata={"ducking": True})
+                add_event("800s", start_beat + kick_sync_pos, metadata={"ducking": True})
 
                 add_event("snares", start_beat + 2) # Snare on beat 3
 
@@ -74,9 +80,10 @@ class TrapArranger:
 
                 # Rolls on even bars
                 if bar % 2 == 1: # "Even" in 1-based indexing, odd in 0-based indexing
-                    # 1/16 and 1/32 rolls
-                    add_event("hihats", start_beat + 3.25)
-                    add_event("hihats", start_beat + 3.75)
+                    roll_start = rng.choice([2.0, 3.0, 3.25])
+                    add_event("hihats", start_beat + roll_start)
+                    add_event("hihats", start_beat + roll_start + 0.25)
+                    add_event("hihats", start_beat + roll_start + 0.5)
 
                 add_event("openhats", start_beat + 1.5)
 
