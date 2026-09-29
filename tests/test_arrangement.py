@@ -13,17 +13,23 @@ def mock_library_dir(tmp_path):
     root = tmp_path / "samples"
     root.mkdir()
 
-    folders = [
-        "808s", "kicks", "claps", "snares", "hihats", "openhats",
-        "percs_1", "percs_2", "synths_1", "synths_2", "synths_3",
-        "fx_1", "fx_2", "Vox"
+    # Flat directory file names mapped to the keywords required
+    file_names = [
+        "808_sub_bass.mp3",
+        "hard_kick_01.mp3",
+        "snare_clap_01.mp3",
+        "closed_hihat_01.mp3",
+        "openhat_01.mp3",
+        "perc_wood_01.mp3",
+        "perc_metal_01.mp3",
+        "synth_melody_loop.mp3",
+        "riser_fx_impact.mp3",
+        "vocal_chant_vox.mp3"
     ]
 
     # Create empty 1-second mp3 files
-    for folder in folders:
-        folder_path = root / folder
-        folder_path.mkdir()
-        mp3_path = folder_path / f"{folder}_01.mp3"
+    for fname in file_names:
+        mp3_path = root / fname
 
         # generate 1 second of silence
         data = np.zeros(44100)
@@ -33,10 +39,15 @@ def mock_library_dir(tmp_path):
 
 def test_sample_library_loads_all(mock_library_dir):
     library = SampleLibrary(mock_library_dir)
-    assert len(library.library) == 14
-    for folder in SampleLibrary.REQUIRED_FOLDERS:
-        assert folder in library.library
-        assert library.get_sample(folder).endswith(".mp3")
+
+    # Check that it mapped the expected roles
+    expected_roles = [
+        "808s", "kicks", "snares", "hihats", "open_hats",
+        "percs_1", "percs_2", "melodies", "fx_1", "Vox"
+    ]
+    for role in expected_roles:
+        assert role in library.library, f"Role {role} not mapped"
+        assert library.get_sample(role).endswith(".mp3")
 
 def test_trap_arranger_timeline(mock_library_dir):
     library = SampleLibrary(mock_library_dir)
@@ -60,8 +71,11 @@ def test_trap_arranger_timeline(mock_library_dir):
 
     snare_events = [e for e in timeline if e["category"] == "snares"]
 
-    # There should be snares in drop 1 and drop 2
-    assert len(snare_events) == 16 # 8 for drop 1, 8 for drop 2
+    # In Intro (bars 1-4), we add snares on beat 3 of bars 3-4 = 2 snares.
+    # In Drop 1 (bars 5-12), 1 snare per bar = 8 snares.
+    # In Drop 2 (bars 13-20), 1 snare per bar = 8 snares.
+    # Total = 18
+    assert len(snare_events) == 18
 
     snare_times_actual = [e["time"] for e in snare_events]
     for expected_time in snare_times_expected:

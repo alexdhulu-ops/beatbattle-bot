@@ -13,17 +13,22 @@ def mock_samples_dir(tmp_path):
     root = tmp_path / "samples"
     root.mkdir()
 
-    folders = [
-        "808s", "kicks", "claps", "snares", "hihats", "openhats",
-        "percs_1", "percs_2", "synths_1", "synths_2", "synths_3",
-        "fx_1", "fx_2", "Vox"
+    file_names = [
+        "808_sub_bass.mp3",
+        "hard_kick_01.mp3",
+        "snare_clap_01.mp3",
+        "closed_hihat_01.mp3",
+        "openhat_01.mp3",
+        "perc_wood_01.mp3",
+        "perc_metal_01.mp3",
+        "synth_melody_loop.mp3",
+        "riser_fx_impact.mp3",
+        "vocal_chant_vox.mp3"
     ]
 
     sr = 44100
-    for folder in folders:
-        folder_path = root / folder
-        folder_path.mkdir()
-        mp3_path = folder_path / f"{folder}_01.mp3"
+    for fname in file_names:
+        mp3_path = root / fname
 
         # Generate 0.5s of random noise
         data = np.random.uniform(-0.1, 0.1, sr // 2).astype(np.float32)
