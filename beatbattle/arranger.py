@@ -2,6 +2,46 @@
 Pattern and song timeline generator.
 """
 from typing import List, Dict, Any
+import numpy as np
+import scipy.signal
+import soundfile as sf
+
+
+def detect_root_key(file_path: str) -> float:
+    """
+    Detects the fundamental frequency (root key) of an audio file
+    using FFT autocorrelation via scipy.signal.
+    """
+    try:
+        # Load a small chunk for analysis
+        data, sr = sf.read(file_path, frames=44100 * 2) # Read up to 2 seconds
+
+        # Mix to mono
+        if len(data.shape) > 1:
+            data = np.mean(data, axis=1)
+
+        # Autocorrelation
+        corr = scipy.signal.correlate(data, data, mode='full')
+        corr = corr[len(corr)//2:]
+
+        # Find the first peak after the zero-lag peak
+        # We look for peaks in a typical fundamental frequency range (e.g., 20 Hz to 2000 Hz)
+        min_lag = int(sr / 2000)
+        max_lag = int(sr / 20)
+
+        peaks, _ = scipy.signal.find_peaks(corr[min_lag:max_lag])
+        if len(peaks) > 0:
+            best_peak = peaks[np.argmax(corr[min_lag:max_lag][peaks])]
+            lag = best_peak + min_lag
+            freq = sr / lag
+
+            # Convert frequency to MIDI note number (A4 = 440Hz = 69)
+            midi_note = 69 + 12 * np.log2(freq / 440.0)
+            return midi_note
+    except Exception:
+        pass
+
+    return 60.0 # Default to C4 if detection fails
 
 
 class TrapArranger:
@@ -41,6 +81,34 @@ class TrapArranger:
         rng = random.Random(variation_seed)
         events = []
 
+        # Detect root keys to align 808s and tonal one-shots to the melody
+        melody_path = library.get_sample("melodies")
+        bass_path = library.get_sample("808s")
+
+        melody_note = detect_root_key(melody_path) if melody_path else 60.0
+        bass_note = detect_root_key(bass_path) if bass_path else 60.0
+
+        # Calculate base shift required to match the 808 to the melody's root key
+        base_808_shift = (melody_note % 12) - (bass_note % 12)
+        # Keep shift within -6 to +5 semitones to minimize artifacts
+        if base_808_shift > 5:
+            base_808_shift -= 12
+        elif base_808_shift < -6:
+            base_808_shift += 12
+
+        # Detect tonal center of vox/perc one-shots if possible to tune them
+        tonal_oneshots_shift = {}
+        for cat in ["vox_oneshot", "perc_oneshot"]:
+            cat_path = library.get_sample(cat)
+            if cat_path:
+                cat_note = detect_root_key(cat_path)
+                shift = (melody_note % 12) - (cat_note % 12)
+                if shift > 5:
+                    shift -= 12
+                elif shift < -6:
+                    shift += 12
+                tonal_oneshots_shift[cat] = shift
+
         def add_event(category: str, beat_time: float, metadata: Dict[str, Any] = None):
             sample_path = library.get_sample(category)
             if sample_path:
@@ -69,12 +137,19 @@ class TrapArranger:
                 elif not should_skip_drum_beat(beat_time):
                     add_event(category, beat_time, metadata)
 
-            # Determine 808 pitch for this bar
+            # Determine 808 pitch for this bar, applying base root key shift
             bar_in_progression = bar % 8
-            current_pitch = chord_progression[bar_in_progression]
+            current_pitch = base_808_shift + chord_progression[bar_in_progression]
 
             # Turnaround glide on bars 4 (index 3) and 8 (index 7)
             glide = (bar_in_progression == 3 or bar_in_progression == 7)
+
+            # Turnaround/accent markers
+            is_turnaround = bar % 4 == 3
+
+            # Intro / Bridge Ambiance
+            if bar == 0 or bar == 12:
+                safe_add("fx_texture", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "attenuate": -14.0})
 
             # Bars 1-4 (Intro): melodies, snares/claps on beat 3 on bars 3-4, fx_1 and dry Vox on bar 4
             if bar < 4:
@@ -83,13 +158,17 @@ class TrapArranger:
                 if bar >= 2: # Bars 3-4 (index 2-3)
                     safe_add("snares", start_beat + 2) # Beat 3
                 if bar == 3: # Bar 4
-                    safe_add("fx_1", start_beat)
-                    safe_add("Vox", start_beat + 3.5) # Final half-beat
+                    safe_add("fx_oneshot", start_beat)
+                    safe_add("vox_oneshot", start_beat + 3.5, metadata={"pan": 0.5}) # Final half-beat panned right
 
             # Bars 5-12 (Drop 1)
             elif 4 <= bar < 12:
                 if bar == 4:
                     safe_add("melodies", start_beat, metadata={"duration": 8 * self.bar_duration_sec})
+                    safe_add("fx_oneshot", start_beat) # Impact downbeat
+                    safe_add("vox_loop", start_beat, metadata={"duration": 8 * self.bar_duration_sec, "lpf": 5000, "attenuate": -12.0})
+                    safe_add("perc_loop", start_beat, metadata={"duration": 8 * self.bar_duration_sec, "attenuate": -6.0})
+
                 safe_add("kicks", start_beat) # Kick on beat 1
 
                 # Vary kick syncopation based on seed
@@ -117,14 +196,20 @@ class TrapArranger:
 
                 safe_add("open_hats", start_beat + 1.5)
 
+                # Syncopated ghost hits and vocals
+                if is_turnaround:
+                    safe_add("vox_oneshot", start_beat + 2.5, metadata={"pan": -0.5, "pitch_shift": tonal_oneshots_shift.get("vox_oneshot", 0)})
+                    safe_add("perc_oneshot", start_beat + 3.75, metadata={"pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
+
             # Bars 13-16 (Breakdown)
             elif 12 <= bar < 16:
                 if bar == 12:
                     safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "filter_sweep": True})
+                    safe_add("vox_loop", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "lpf": 5000, "attenuate": -14.0})
 
                 # Light percussion, no 808s or kicks
                 safe_add("snares", start_beat + 2)
-                safe_add("percs_1", start_beat + 1.75)
+                safe_add("perc_oneshot", start_beat + 1.75, metadata={"pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
 
                 # Sparse hihats
                 for i in range(4):
@@ -134,7 +219,9 @@ class TrapArranger:
             elif 16 <= bar < 20:
                 if bar == 16:
                     safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec})
-                    safe_add("fx_1", start_beat) # Impact on drop
+                    safe_add("fx_oneshot", start_beat) # Impact on drop
+                    safe_add("vox_loop", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "lpf": 5000, "attenuate": -10.0})
+                    safe_add("perc_loop", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "attenuate": -6.0})
 
                 # Kick variation
                 safe_add("kicks", start_beat)
@@ -152,22 +239,25 @@ class TrapArranger:
                     vel = 0.5 + (i / 32.0) # velocity ramp
                     safe_add("hihats", start_beat + i * 0.25, metadata={"velocity": vel})
 
-                safe_add("percs_1", start_beat + 1.75)
-                safe_add("percs_2", start_beat + 3.25)
+                safe_add("perc_oneshot", start_beat + 1.75, metadata={"pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
+                safe_add("perc_oneshot", start_beat + 3.25, metadata={"pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
+
+                if is_turnaround:
+                    safe_add("vox_oneshot", start_beat + 3.5, metadata={"pan": 0.5, "pitch_shift": tonal_oneshots_shift.get("vox_oneshot", 0)})
 
             # Bars 21-24 (Outro)
             elif 20 <= bar < 24:
                 if bar == 20:
                     safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec})
                 # Light percs on offbeat
-                safe_add("percs_1", start_beat + 1.5)
+                safe_add("perc_oneshot", start_beat + 1.5, metadata={"pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
 
                 if bar < 22: # Cut 808 and kicks at bar 23 (index 22)
                     safe_add("kicks", start_beat)
                     safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch})
 
-                if bar == 23: # Bar 24 trigger fx_2
-                    safe_add("fx_2", start_beat)
+                if bar == 23: # Bar 24 trigger fx_oneshot
+                    safe_add("fx_oneshot", start_beat)
 
         return events
 

@@ -13,26 +13,28 @@ def mock_samples_dir(tmp_path):
     root = tmp_path / "samples"
     root.mkdir()
 
-    file_names = [
-        "808_sub_bass.mp3",
-        "hard_kick_01.mp3",
-        "snare_clap_01.mp3",
-        "closed_hihat_01.mp3",
-        "openhat_01.mp3",
-        "perc_wood_01.mp3",
-        "perc_metal_01.mp3",
-        "synth_melody_loop.mp3",
-        "riser_fx_impact.mp3",
-        "vocal_chant_vox.mp3"
-    ]
+    file_names = {
+        "808_sub_bass.mp3": 1.0,
+        "hard_kick_01.mp3": 1.0,
+        "snare_clap_01.mp3": 1.0,
+        "closed_hihat_01.mp3": 1.0,
+        "openhat_01.mp3": 1.0,
+        "perc_wood_01.mp3": 1.0,      # perc_oneshot
+        "perc_metal_loop.mp3": 2.0,   # perc_loop
+        "synth_melody_loop.mp3": 2.0,
+        "riser_fx_impact.mp3": 1.0,   # fx_oneshot
+        "ambient_fx_texture.mp3": 2.0,# fx_texture
+        "vocal_chant_vox.mp3": 1.0,   # vox_oneshot
+        "vocal_hook_loop.mp3": 2.0    # vox_loop
+    }
 
     sr = 44100
-    for fname in file_names:
+    for fname, duration in file_names.items():
         mp3_path = root / fname
 
-        # Generate 0.5s of random noise to ensure non-silence
-        # We use a small amplitude to avoid extreme clipping before limiter
-        data = np.random.uniform(-0.1, 0.1, sr // 2).astype(np.float32)
+        # Generate random noise
+        samples = int(sr * duration)
+        data = np.random.uniform(-0.1, 0.1, samples).astype(np.float32)
         sf.write(str(mp3_path), data, sr, format='MP3')
 
     return str(root)

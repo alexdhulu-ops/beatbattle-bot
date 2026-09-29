@@ -14,25 +14,24 @@ def mock_library_dir(tmp_path):
     root.mkdir()
 
     # Flat directory file names mapped to the keywords required
-    file_names = [
-        "808_sub_bass.mp3",
-        "hard_kick_01.mp3",
-        "snare_clap_01.mp3",
-        "closed_hihat_01.mp3",
-        "openhat_01.mp3",
-        "perc_wood_01.mp3",
-        "perc_metal_01.mp3",
-        "synth_melody_loop.mp3",
-        "riser_fx_impact.mp3",
-        "vocal_chant_vox.mp3"
-    ]
+    file_names = {
+        "808_sub_bass.mp3": 1.0,
+        "hard_kick_01.mp3": 1.0,
+        "snare_clap_01.mp3": 1.0,
+        "closed_hihat_01.mp3": 1.0,
+        "openhat_01.mp3": 1.0,
+        "perc_wood_01.mp3": 1.0,      # perc_oneshot
+        "perc_metal_loop.mp3": 2.0,   # perc_loop
+        "synth_melody_loop.mp3": 2.0,
+        "riser_fx_impact.mp3": 1.0,   # fx_oneshot
+        "ambient_fx_texture.mp3": 2.0,# fx_texture
+        "vocal_chant_vox.mp3": 1.0,   # vox_oneshot
+        "vocal_hook_loop.mp3": 2.0    # vox_loop
+    }
 
-    # Create empty 1-second mp3 files
-    for fname in file_names:
+    for fname, duration in file_names.items():
         mp3_path = root / fname
-
-        # generate 1 second of silence
-        data = np.zeros(44100)
+        data = np.zeros(int(44100 * duration))
         sf.write(mp3_path, data, 44100, format='MP3')
 
     return str(root)
@@ -43,7 +42,7 @@ def test_sample_library_loads_all(mock_library_dir):
     # Check that it mapped the expected roles
     expected_roles = [
         "808s", "kicks", "snares", "hihats", "open_hats",
-        "percs_1", "percs_2", "melodies", "fx_1", "Vox"
+        "perc_oneshot", "perc_loop", "melodies", "fx_oneshot", "fx_texture", "vox_oneshot", "vox_loop"
     ]
     for role in expected_roles:
         assert role in library.library, f"Role {role} not mapped"
