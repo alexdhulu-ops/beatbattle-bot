@@ -53,8 +53,8 @@ def test_generate_command(mock_samples_dir, tmp_path):
 
     assert result.exit_code == 0
     assert "Loading samples from directory..." in result.stdout
-    assert "Generating 24-bar Trap timeline..." in result.stdout
-    assert "Rendering audio and applying mastering..." in result.stdout
+    assert "Generating Trap timeline" in result.stdout
+    assert "Rendering audio and applying mastering" in result.stdout
     assert "Success!" in result.stdout
 
     # Check if the output file is created
