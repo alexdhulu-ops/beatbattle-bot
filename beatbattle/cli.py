@@ -46,7 +46,7 @@ def generate(
     renderer = AudioRenderer(sample_rate=44100)
     raw_audio = renderer.render_timeline(timeline)
 
-    mastering = MasteringChain(target_lufs=-9.0, true_peak=-0.3)
+    mastering = MasteringChain(target_rms_db=-9.0, true_peak=-0.3)
     mastered_audio = mastering.process(raw_audio, 44100)
 
     output_dir = os.path.dirname(output_file)

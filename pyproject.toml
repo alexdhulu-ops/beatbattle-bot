@@ -13,7 +13,6 @@ dependencies = [
     "soundfile",
     "numpy",
     "scipy",
-    "pedalboard",
     "typer"
 ]
 
