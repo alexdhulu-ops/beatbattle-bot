@@ -39,7 +39,7 @@ class TrapArranger:
         self.bar_duration_sec = self.beat_duration_sec * self.beats_per_bar
         self.total_duration_seconds = self.bar_duration_sec * self.total_bars
 
-    def create_timeline(self, library: Any, variation_seed: int = 1) -> List[Dict[str, Any]]:
+    def create_timeline(self, library: Any, variation_seed: int | None = None) -> List[Dict[str, Any]]:
         """
         Creates a 24-bar Trap timeline mapping samples from the SampleLibrary.
 
@@ -51,9 +51,7 @@ class TrapArranger:
             A full timeline of events for the song. Each event is a dict containing
             at least 'sample', 'time', and potentially 'metadata'.
         """
-        import random
-        rng = random.Random(variation_seed)
-        np.random.seed(variation_seed)
+        rng = np.random.default_rng(variation_seed)
         events = []
 
         # Detect root keys to align 808s and tonal one-shots to the melody
