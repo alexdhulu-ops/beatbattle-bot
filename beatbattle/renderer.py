@@ -244,7 +244,8 @@ class AudioRenderer:
                 "open_hats": -14.0,
                 "perc_oneshot": -16.0, # -10.0 relative to kick
                 "perc_loop": -16.0,
-                "melodies": -13.0, # -7.0 relative to kick
+                "melodies": -8.0, # -2.0 relative to kick (brought up significantly for presence)
+                "melody_oneshot": -8.0, # Present and punchy short synths
                 "vox_oneshot": -18.0, # -12.0 relative to kick
                 "vox_loop": -18.0,
                 "fx_oneshot": -18.0,
@@ -259,7 +260,7 @@ class AudioRenderer:
 
             # Per-Track Corrective EQ
             nyq = 0.5 * sr
-            if category in ["melodies", "perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
+            if category in ["melodies", "melody_oneshot", "perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
                 b_hp, a_hp = scipy.signal.butter(2, 160.0 / nyq, btype='high', analog=False)
                 audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
             elif category == "808s":
@@ -273,7 +274,7 @@ class AudioRenderer:
                 b_hp, a_hp = scipy.signal.butter(2, 350.0 / nyq, btype='high', analog=False)
                 audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
 
-            if category == "melodies":
+            if category in ["melodies", "melody_oneshot"]:
                 audio_data = self._process_melody_dsp(audio_data.copy(), metadata)
 
             # Length trimming for loops (melodies, vox_loop, perc_loop, fx_texture)

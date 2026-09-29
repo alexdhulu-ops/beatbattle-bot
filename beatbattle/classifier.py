@@ -73,12 +73,25 @@ class SampleLibrary:
                     self._add_to_library("vox_oneshot", file_path)
                 elif duration > 1.5:
                     self._add_to_library("vox_loop", file_path)
-            elif any(kw in search_str for kw in ["loop", "melody", "sample", "synth", "pad", "flute"]):
+            else:
+                # Default fallback for any non-drum/fx/vox sample: classify as melodic synth based on duration
                 duration = self._get_duration(file_path)
                 if duration < 0.5:
                     self._add_to_library("melody_oneshot", file_path)
                 else:
                     self._add_to_library("melodies", file_path)
+
+        # Log detected melodic files to console
+        melodic_files = []
+        if "melodies" in self.library:
+            melodic_files.append(f"Long Melody: {os.path.basename(self.library['melodies'])}")
+        if "melody_oneshot" in self.library:
+            melodic_files.append(f"Short Melody: {os.path.basename(self.library['melody_oneshot'])}")
+
+        if melodic_files:
+            print("Detected Melodic/Synth Files:")
+            for f in melodic_files:
+                print(f"  - {f}")
 
     def _get_duration(self, file_path: str) -> float:
         try:
