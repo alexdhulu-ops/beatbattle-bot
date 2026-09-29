@@ -232,11 +232,12 @@ class AudioRenderer:
 
             # Base Target Gain Staging relative to kick (0.0 dB reference, target -6.0 dBFS)
             # Normalizing individual track stems relative to each other:
+            # Snare/clap is boosted +2.5 to +3.0 dB relative to original -8.0 dB
             target_gains = {
                 "kicks": -6.0,
                 "808s": -7.5, # -1.5 relative to kick
-                "snares": -8.0, # -2.0 relative to kick
-                "claps": -8.0,
+                "snares": -5.0, # +1.0 relative to kick (was -8.0)
+                "claps": -5.0,
                 "hihats": -14.0, # -8.0 relative to kick
                 "open_hats": -14.0,
                 "perc_oneshot": -16.0, # -10.0 relative to kick

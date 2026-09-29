@@ -135,20 +135,20 @@ class TrapArranger:
             if bar < 4:
                 if bar == 0:
                     intro_metadata = {"halftime": True, "duration": 4 * self.bar_duration_sec}
-                    if rng.random() < 0.50:
+                    if rng.random() < 0.5:
                         intro_metadata["filter_sweep_intro"] = True
                     else:
                         intro_metadata["filter_sweep"] = True # Static muffled fallback
-
-                    if rng.random() < 0.33:
-                        intro_metadata["tape_stop"] = True
 
                     safe_add("fx_oneshot", start_beat) # Impact downbeat bar 1
                     safe_add("melodies", start_beat, metadata=intro_metadata)
                 if bar >= 2: # Bars 3-4 (index 2-3)
                     safe_add("snares", start_beat + 2) # Beat 3
                 if bar == 3: # Bar 4
-                    safe_add("fx_oneshot", start_beat + 3) # Pre-drop transition bar 4 beat 4
+                    if rng.random() < 0.33:
+                        safe_add("fx_oneshot", start_beat + 3, metadata={"tape_stop": True}) # Pre-drop transition bar 4 beat 4
+                    else:
+                        safe_add("fx_oneshot", start_beat + 3)
                     safe_add("vox_oneshot", start_beat + 3.5, metadata={"pan": 0.5}) # Final half-beat panned right
 
             # Bars 5-12 (Drop 1)
@@ -162,17 +162,32 @@ class TrapArranger:
                 safe_add("kicks", start_beat) # Kick on beat 1
 
                 # Vary kick syncopation based on seed (including 16th note off-beats)
-                kick_sync_pos = rng.choice([1.5, 2.5, 2.75, 3.5])
-                safe_add("kicks", start_beat + kick_sync_pos)
+                # Pick randomly between 3 distinct kick syncopation templates
+                kick_template = rng.choice([0, 1, 2])
+                kick_hits = []
+                if kick_template == 0:
+                    kick_hits = [1.5]
+                elif kick_template == 1:
+                    kick_hits = [2.5]
+                elif kick_template == 2:
+                    kick_hits = [2.75, 3.5]
+
+                for k_pos in kick_hits:
+                    safe_add("kicks", start_beat + k_pos)
+                    safe_add("808s", start_beat + k_pos, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
 
                 # 808s with ducking metadata matching kicks and pitch
                 safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
-                safe_add("808s", start_beat + kick_sync_pos, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
 
                 safe_add("snares", start_beat + 2) # Snare on beat 3
 
+                # Pick randomly between 2 hi-hat roll densities
+                hihat_density = rng.choice([0, 1])
+
                 # 1/8 hihats (every 0.5 beats)
                 for i in range(8):
+                    if hihat_density == 1 and i % 2 != 0:
+                        continue # sparse hi-hats
                     safe_add("hihats", start_beat + i * 0.5, metadata={"pan": main_hihat_pan})
 
                 # Rolls on even bars
