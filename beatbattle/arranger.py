@@ -9,11 +9,14 @@ class TrapArranger:
     Arranges audio samples into a 24-bar Trap song timeline at 140 BPM.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, tempo: float = 140.0) -> None:
         """
-        Initializes the TrapArranger. Locks tempo at 140 BPM.
+        Initializes the TrapArranger. Locks tempo at given value (default 140 BPM).
+
+        Args:
+            tempo: The tempo in beats per minute.
         """
-        self.tempo = 140.0
+        self.tempo = tempo
         self.beats_per_bar = 4
         self.total_bars = 24
 
