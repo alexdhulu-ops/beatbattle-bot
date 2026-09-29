@@ -55,7 +55,7 @@ class TrapArranger:
         events = []
 
         # Detect root keys to align 808s and tonal one-shots to the melody
-        melody_path = library.get_sample("melodies")
+        melody_path = library.get_sample("melodies") or library.get_sample("melody_oneshot")
         bass_path = library.get_sample("808s")
 
         melody_note = get_midi_note(melody_path, fmin=100.0, fmax=800.0) if melody_path else 60.0
@@ -100,6 +100,12 @@ class TrapArranger:
         main_hihat_pan = rng.choice([-0.2, 0.2])
         opposite_perc_pan = -main_hihat_pan
 
+        has_long_melody = library.get_sample("melodies") is not None
+        has_short_melody = library.get_sample("melody_oneshot") is not None
+
+        # Minor pentatonic intervals for short melodies (0, 3, 5, 7, 10)
+        pentatonic_intervals = [0, 3, 5, 7, 10]
+
         for bar in range(self.total_bars):
             start_beat = bar * self.beats_per_bar
 
@@ -111,7 +117,7 @@ class TrapArranger:
 
             def safe_add(category: str, beat_time: float, metadata: Dict[str, Any] = None):
                 # Don't cut melodies, only drums/bass on the cut sections
-                if category == "melodies" or category.startswith("fx"):
+                if category == "melodies" or category == "melody_oneshot" or category.startswith("fx"):
                     add_event(category, beat_time, metadata)
                 elif not should_skip_drum_beat(beat_time):
                     add_event(category, beat_time, metadata)
@@ -141,7 +147,21 @@ class TrapArranger:
                         intro_metadata["filter_sweep"] = True # Static muffled fallback
 
                     safe_add("fx_oneshot", start_beat) # Impact downbeat bar 1
-                    safe_add("melodies", start_beat, metadata=intro_metadata)
+
+                    if has_long_melody:
+                        safe_add("melodies", start_beat, metadata=intro_metadata)
+
+                # Short melodies (syncopated arps/hits)
+                if has_short_melody:
+                    # Rhythmic Trap Pattern: beats 0, 1.5, 2.5, 3.75
+                    arp_beats = [0, 1.5, 2.5, 3.75]
+                    for ab in arp_beats:
+                        pitch = rng.choice(pentatonic_intervals)
+                        # Optionally drop octave down for some hits
+                        if rng.random() < 0.2:
+                            pitch -= 12
+                        safe_add("melody_oneshot", start_beat + ab, metadata={"pitch_shift": int(pitch)})
+
                 if bar >= 2: # Bars 3-4 (index 2-3)
                     safe_add("snares", start_beat + 2) # Beat 3
                 if bar == 3: # Bar 4
@@ -154,10 +174,22 @@ class TrapArranger:
             # Bars 5-12 (Drop 1)
             elif 4 <= bar < 12:
                 if bar == 4:
-                    safe_add("melodies", start_beat, metadata={"duration": 8 * self.bar_duration_sec})
+                    if has_long_melody:
+                        safe_add("melodies", start_beat, metadata={"duration": 8 * self.bar_duration_sec})
                     safe_add("fx_oneshot", start_beat) # Impact downbeat
                     safe_add("vox_loop", start_beat, metadata={"duration": 8 * self.bar_duration_sec, "lpf": 5000, "attenuate": -12.0})
                     safe_add("perc_loop", start_beat, metadata={"duration": 8 * self.bar_duration_sec, "attenuate": -6.0})
+
+                if has_short_melody:
+                    arp_beats = [0, 1.5, 2.5, 3.75]
+                    for ab in arp_beats:
+                        pitch = rng.choice(pentatonic_intervals)
+                        if rng.random() < 0.2:
+                            pitch -= 12
+                        # Occasional double hit for variation (1/16th later)
+                        if rng.random() < 0.3:
+                            safe_add("melody_oneshot", start_beat + ab + 0.25, metadata={"pitch_shift": int(pitch), "attenuate": -6.0})
+                        safe_add("melody_oneshot", start_beat + ab, metadata={"pitch_shift": int(pitch)})
 
                 safe_add("kicks", start_beat) # Kick on beat 1
 
@@ -209,8 +241,16 @@ class TrapArranger:
             # Bars 13-16 (Breakdown)
             elif 12 <= bar < 16:
                 if bar == 12:
-                    safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "filter_sweep": True})
+                    if has_long_melody:
+                        safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "filter_sweep": True})
                     safe_add("vox_loop", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "lpf": 5000, "attenuate": -14.0})
+
+                if has_short_melody:
+                    # Sparse arpeggio on Breakdown
+                    arp_beats = [0, 2]
+                    for ab in arp_beats:
+                        pitch = rng.choice(pentatonic_intervals)
+                        safe_add("melody_oneshot", start_beat + ab, metadata={"pitch_shift": int(pitch), "lpf": 2000})
 
                 if bar == 15: # Bar 16
                     safe_add("fx_oneshot", start_beat + 3) # Pre-drop transition bar 16 beat 4
@@ -226,10 +266,21 @@ class TrapArranger:
             # Bars 17-20 (Second Hard Drop)
             elif 16 <= bar < 20:
                 if bar == 16:
-                    safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec})
+                    if has_long_melody:
+                        safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec})
                     safe_add("fx_oneshot", start_beat) # Impact on drop
                     safe_add("vox_loop", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "lpf": 5000, "attenuate": -10.0})
                     safe_add("perc_loop", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "attenuate": -6.0})
+
+                if has_short_melody:
+                    arp_beats = [0, 1.5, 2.5, 3.75]
+                    for ab in arp_beats:
+                        pitch = rng.choice(pentatonic_intervals)
+                        if rng.random() < 0.2:
+                            pitch -= 12
+                        if rng.random() < 0.3:
+                            safe_add("melody_oneshot", start_beat + ab + 0.25, metadata={"pitch_shift": int(pitch), "attenuate": -6.0})
+                        safe_add("melody_oneshot", start_beat + ab, metadata={"pitch_shift": int(pitch)})
 
                 # Kick variation
                 safe_add("kicks", start_beat)
@@ -257,7 +308,15 @@ class TrapArranger:
             # Bars 21-24 (Outro)
             elif 20 <= bar < 24:
                 if bar == 20:
-                    safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec})
+                    if has_long_melody:
+                        safe_add("melodies", start_beat, metadata={"duration": 4 * self.bar_duration_sec})
+
+                if has_short_melody:
+                    arp_beats = [0, 2]
+                    for ab in arp_beats:
+                        pitch = rng.choice(pentatonic_intervals)
+                        safe_add("melody_oneshot", start_beat + ab, metadata={"pitch_shift": int(pitch), "attenuate": -6.0})
+
                 # Light percs on offbeat
                 safe_add("perc_oneshot", start_beat + 1.5, metadata={"pan": opposite_perc_pan, "pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
 

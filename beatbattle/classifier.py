@@ -74,7 +74,11 @@ class SampleLibrary:
                 elif duration > 1.5:
                     self._add_to_library("vox_loop", file_path)
             elif any(kw in search_str for kw in ["loop", "melody", "sample", "synth", "pad", "flute"]):
-                self._add_to_library("melodies", file_path)
+                duration = self._get_duration(file_path)
+                if duration < 0.5:
+                    self._add_to_library("melody_oneshot", file_path)
+                else:
+                    self._add_to_library("melodies", file_path)
 
     def _get_duration(self, file_path: str) -> float:
         try:
@@ -100,7 +104,7 @@ class SampleLibrary:
         if missing_critical:
             raise ValueError(f"Missing critical drums: {', '.join(missing_critical)}")
 
-        if "melodies" not in self.library:
+        if "melodies" not in self.library and "melody_oneshot" not in self.library:
             raise ValueError("Missing at least one melody/synth sample.")
 
     def get_sample(self, category: str) -> Optional[str]:

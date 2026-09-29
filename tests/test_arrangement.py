@@ -121,3 +121,49 @@ def test_melody_trimming_and_fade(tmp_path):
     # The rendered timeline itself is always 43.5s long due to the master buffer,
     # but we can check if there are no NaNs produced during the trimming/fading process.
     assert not np.isnan(rendered_audio).any()
+
+def test_short_melody_quantized_arpeggios(tmp_path):
+    root = tmp_path / "samples"
+    root.mkdir()
+
+    # Create required samples, particularly a SHORT melody sample (< 0.5s)
+    file_names = {
+        "808_sub_bass.mp3": 1.0,
+        "hard_kick_01.ogg": 1.0,
+        "snare_clap_01.wav": 1.0,
+        "closed_hihat_01.OGG": 1.0,
+        "synth_melody_short.mp3": 0.25, # SHORT melodic sample!
+    }
+
+    sr = 44100
+    for fname, duration in file_names.items():
+        ext = fname.split('.')[-1].upper()
+        audio_format = 'OGG' if ext == 'OGG' else ('WAV' if ext == 'WAV' else 'MP3')
+        file_path = root / fname
+        data = np.zeros(int(sr * duration))
+        sf.write(str(file_path), data, sr, format=audio_format)
+
+    library = SampleLibrary(str(root))
+    assert library.get_sample("melody_oneshot") is not None
+    assert library.get_sample("melodies") is None
+
+    arranger = TrapArranger()
+    timeline = arranger.create_timeline(library)
+
+    short_melodies = [e for e in timeline if e["category"] == "melody_oneshot"]
+
+    # Ensure it generated plenty of hits (e.g. at least 4 per drop/outro section, way more than 4 overall)
+    assert len(short_melodies) >= 16
+
+    # Minor pentatonic intervals allowed
+    pentatonic_intervals = [0, 3, 5, 7, 10]
+
+    for hit in short_melodies:
+        shift = hit["metadata"].get("pitch_shift", 0)
+
+        # Normalize the shift to check the scale interval
+        interval = (shift % 12)
+        if interval < 0:
+            interval += 12
+
+        assert interval in pentatonic_intervals, f"Pitch shift {shift} (interval {interval}) not in {pentatonic_intervals}"
