@@ -57,7 +57,8 @@ def test_trap_arranger_timeline(mock_library_dir):
 
     # Test across multiple seeds to ensure logic holds for all flows
     for seed in [1, 42, 999, 1337]:
-        timeline = arranger.create_timeline(library, variation_seed=seed)
+        rng = np.random.default_rng(seed)
+        timeline = arranger.create_timeline(library, rng=rng)
         assert len(timeline) > 0
 
         # Check total duration calculation

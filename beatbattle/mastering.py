@@ -130,31 +130,6 @@ class MasteringChain:
 
         return audio * gain_linear
 
-    def apply_limiting(self, audio: np.ndarray) -> np.ndarray:
-        """
-        Applies a peak limiter to the audio to prevent clipping.
-
-        Args:
-            audio: The input audio array.
-
-        Returns:
-            The limited audio array.
-        """
-        pass
-
-    def normalize_loudness(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
-        """
-        Normalizes the audio to the target LUFS level.
-
-        Args:
-            audio: The input audio array.
-            sample_rate: The audio sample rate.
-
-        Returns:
-            The loudness-normalized audio array.
-        """
-        pass
-
     def process(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
         """
         Applies the complete native mastering chain (filtering, normalization, soft clipping/limiting).

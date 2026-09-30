@@ -45,7 +45,6 @@ def test_generate_command(mock_samples_dir, tmp_path):
     output_wav = tmp_path / "output" / "song.wav"
 
     result = runner.invoke(app, [
-        "generate",
         "--samples-dir", mock_samples_dir,
         "--output-file", str(output_wav),
         "--tempo", "140.0"

@@ -5,11 +5,9 @@ import typer
 from typing import Optional
 import time
 import os
-import random
 import numpy as np
 import soundfile as sf
 from rich.console import Console
-from rich.prompt import Prompt
 
 from beatbattle.classifier import SampleLibrary
 from beatbattle.arranger import TrapArranger
@@ -61,9 +59,10 @@ def generate(
 
     for i in range(batch):
         current_seed = int(base_seed + i * 7919)  # Large prime offset
+        current_rng = np.random.default_rng(current_seed)
 
         console.print(f"Generating Trap timeline ({i + 1}/{batch})...")
-        timeline = arranger.create_timeline(library, variation_seed=current_seed)
+        timeline = arranger.create_timeline(library, rng=current_rng)
 
         console.print(f"Rendering audio and applying mastering ({i + 1}/{batch})...")
         raw_audio = renderer.render_timeline(timeline)
@@ -81,16 +80,6 @@ def generate(
 
     elapsed = time.time() - start_time
     console.print(f"Elapsed rendering time: {elapsed:.2f} seconds")
-
-
-@app.command()
-def analyze(
-    file_path: str = typer.Argument(..., help="Path to the audio file to analyze"),
-) -> None:
-    """
-    Analyzes a single audio file and prints its features.
-    """
-    pass
 
 
 def main() -> None:
