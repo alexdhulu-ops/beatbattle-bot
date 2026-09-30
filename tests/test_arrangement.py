@@ -73,6 +73,12 @@ def test_trap_arranger_timeline(mock_library_dir):
             first_808_time = min(e["time"] for e in eight08_events)
             assert first_808_time >= intro_duration_sec - 0.001, f"Seed {seed}: 808 triggered too early during intro at {first_808_time}s"
 
+        # Verify intro is never silent (must have structural foundation)
+        intro_events = [e for e in timeline if e["time"] < intro_duration_sec - 0.001]
+
+        has_foundation = any(e["category"].startswith("synth_loop_") or e["category"] == "fx_texture" for e in intro_events)
+        assert has_foundation, f"Seed {seed}: Intro generated is silent/lacks foundational harmony layers."
+
     # Check snare placement on beat 3 during drop 1 (Bars 5-12, indexing 4-11)
     # Snares are on beat 3 (index 2 of the bar)
     # Start of Bar 5 (index 4) is beat 16. Snare should be at beat 18.

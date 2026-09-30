@@ -262,8 +262,17 @@ class TrapArranger:
 
                     safe_add("fx_oneshot", start_beat) # Impact downbeat bar 1
 
+                    # Enforce minimum foundational density in intro
                     if intro_synth and "loop" in intro_synth:
                         safe_add(intro_synth, start_beat, metadata=intro_metadata)
+                    else:
+                        # Fallback: if there's no loop synth selected, force the first available loop synth
+                        # or at least a foundational atmospheric layer so the intro isn't empty/dead air.
+                        fallback_loop = next((s for s in all_synths if "loop" in s), None)
+                        if fallback_loop:
+                            safe_add(fallback_loop, start_beat, metadata=intro_metadata)
+                        else:
+                            safe_add("fx_texture", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "attenuate": -10.0})
 
                 # Short melodies (syncopated arps/hits)
                 if intro_synth and "oneshot" in intro_synth:
