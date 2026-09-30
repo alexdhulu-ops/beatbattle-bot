@@ -49,19 +49,29 @@ from beatbattle.cli import app
 
 runner = CliRunner()
 
-def generate_beat(sample_dir, output_file, seed):
+def generate_beat(sample_dir, output_file, seed, batch=1):
     runner.invoke(app, [
         "generate",
         "--samples-dir", sample_dir,
         "--output-file", str(output_file),
-        "--seed", str(seed)
+        "--seed", str(seed),
+        "--batch", str(batch)
     ])
 
 def test_batch_outputs_are_different(mock_samples_dir, tmp_path):
-    out1 = tmp_path / "out1.wav"
-    out2 = tmp_path / "out2.wav"
-    generate_beat(mock_samples_dir, out1, seed=101)
-    generate_beat(mock_samples_dir, out2, seed=202)
+    out_prefix = tmp_path / "batch_out.wav"
+    generate_beat(mock_samples_dir, out_prefix, seed=101, batch=4)
+
+    out1 = tmp_path / "batch_out_1.wav"
+    out2 = tmp_path / "batch_out_2.wav"
+    out3 = tmp_path / "batch_out_3.wav"
+    out4 = tmp_path / "batch_out_4.wav"
+
+    assert out1.exists()
+    assert out2.exists()
+    assert out3.exists()
+    assert out4.exists()
+
     data1, _ = sf.read(out1)
     data2, _ = sf.read(out2)
-    assert not np.array_equal(data1, data2), "Outputs must not be identical across different seeds!"
+    assert not np.array_equal(data1, data2), "Outputs must not be identical across different seeds in batch!"
