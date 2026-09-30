@@ -39,19 +39,20 @@ class TrapArranger:
         self.bar_duration_sec = self.beat_duration_sec * self.beats_per_bar
         self.total_duration_seconds = self.bar_duration_sec * self.total_bars
 
-    def create_timeline(self, library: Any, variation_seed: int | None = None) -> List[Dict[str, Any]]:
+    def create_timeline(self, library: Any, rng: np.random.Generator | None = None) -> List[Dict[str, Any]]:
         """
         Creates a 24-bar Trap timeline mapping samples from the SampleLibrary.
 
         Args:
             library: An instance of SampleLibrary.
-            variation_seed: An integer seed to vary kick syncopations and hihat rolls.
+            rng: A numpy random Generator instance for procedural arrangement variation.
 
         Returns:
             A full timeline of events for the song. Each event is a dict containing
             at least 'sample', 'time', and potentially 'metadata'.
         """
-        rng = np.random.default_rng(variation_seed)
+        if rng is None:
+            rng = np.random.default_rng()
         events = []
 
         # Detect root keys to align 808s and tonal one-shots to the synth
@@ -465,45 +466,3 @@ class TrapArranger:
                         safe_add("kicks", start_beat)
 
         return events
-
-
-class SongArranger:
-    """
-    Arranges audio samples and patterns into a complete song timeline.
-    """
-
-    def __init__(self, tempo: float = 120.0, time_signature: tuple[int, int] = (4, 4)) -> None:
-        """
-        Initializes the SongArranger.
-
-        Args:
-            tempo: The tempo of the song in beats per minute (BPM).
-            time_signature: The time signature of the song (numerator, denominator).
-        """
-        pass
-
-    def generate_pattern(self, samples: List[Dict[str, Any]], length_beats: int) -> List[Dict[str, Any]]:
-        """
-        Generates a rhythmic pattern from a list of samples.
-
-        Args:
-            samples: A list of sample dictionaries.
-            length_beats: The length of the pattern in beats.
-
-        Returns:
-            A list of events defining the pattern.
-        """
-        pass
-
-    def create_timeline(self, patterns: List[List[Dict[str, Any]]], arrangement_structure: List[str]) -> List[Dict[str, Any]]:
-        """
-        Creates a complete song timeline by assembling patterns according to a structure.
-
-        Args:
-            patterns: A list of patterns (lists of events).
-            arrangement_structure: A list of pattern identifiers indicating the order.
-
-        Returns:
-            A full timeline of events for the song.
-        """
-        pass

@@ -31,7 +31,7 @@ class AudioRenderer:
     def _process_melody_dsp(self, audio: np.ndarray, metadata: Dict[str, Any] = None) -> np.ndarray:
         """
         Applies DSP to melody tracks:
-        1. High-pass filter (Butterworth 2nd order around 200 Hz).
+        1. High-pass filter (Butterworth 2nd order around 140 Hz).
         2. Low-pass cut (Butterworth 2nd order around 7500 Hz).
         3. Stereo widening (Haas effect, ~15ms delay on right channel).
         """
@@ -46,8 +46,8 @@ class AudioRenderer:
             # scipy.signal.resample processes along the last axis by default
             audio = scipy.signal.resample(audio, new_len, axis=1)
 
-        # High-pass filter at 200 Hz
-        hp_cutoff = 200.0 / nyq
+        # High-pass filter at 140 Hz to remove low-end clash
+        hp_cutoff = 140.0 / nyq
         b_hp, a_hp = scipy.signal.butter(2, hp_cutoff, btype='high', analog=False)
         audio = self._apply_biquad(audio, b_hp, a_hp)
 
@@ -214,13 +214,11 @@ class AudioRenderer:
                 pan = metadata["pan"]
                 left_gain = np.cos((pan + 1) * np.pi / 4)
                 right_gain = np.sin((pan + 1) * np.pi / 4)
-                audio_data = audio_data.copy()
                 audio_data[0] *= left_gain
                 audio_data[1] *= right_gain
 
             # General effects: LPF
             if "lpf" in metadata:
-                audio_data = audio_data.copy()
                 nyq = 0.5 * sr
                 cutoff = metadata["lpf"] / nyq
                 b_lp, a_lp = scipy.signal.butter(2, cutoff, btype='low', analog=False)
@@ -228,7 +226,6 @@ class AudioRenderer:
 
             # General effects: Attenuation (Gain Staging)
             if "attenuate" in metadata:
-                audio_data = audio_data.copy()
                 gain_linear = 10 ** (metadata["attenuate"] / 20.0)
                 audio_data *= gain_linear
 
@@ -261,10 +258,7 @@ class AudioRenderer:
 
             # Per-Track Corrective EQ
             nyq = 0.5 * sr
-            if category.startswith("synth_"):
-                b_hp, a_hp = scipy.signal.butter(2, 140.0 / nyq, btype='high', analog=False)
-                audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
-            elif category in ["perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
+            if category in ["perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
                 b_hp, a_hp = scipy.signal.butter(2, 160.0 / nyq, btype='high', analog=False)
                 audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
             elif category == "808s":
@@ -321,7 +315,6 @@ class AudioRenderer:
 
             # General effects: Pitch Shifting (used for 808s and tonal one-shots)
             if "pitch_shift" in metadata:
-                audio_data = audio_data.copy()
                 pitch_shift_semitones = metadata["pitch_shift"]
                 if pitch_shift_semitones != 0:
                     # Resample to static pitch shift (speed up / slow down)

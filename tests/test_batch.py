@@ -51,7 +51,6 @@ runner = CliRunner()
 
 def generate_beat(sample_dir, output_file, seed, batch=1):
     runner.invoke(app, [
-        "generate",
         "--samples-dir", sample_dir,
         "--output-file", str(output_file),
         "--seed", str(seed),

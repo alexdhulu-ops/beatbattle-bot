@@ -49,7 +49,8 @@ def test_end_to_end_rendering(mock_samples_dir, tmp_path):
     mastering = MasteringChain()
 
     # Generate timeline
-    timeline = arranger.create_timeline(library, variation_seed=42)
+    rng = np.random.default_rng(42)
+    timeline = arranger.create_timeline(library, rng=rng)
 
     # Render audio
     raw_audio = renderer.render_timeline(timeline)
