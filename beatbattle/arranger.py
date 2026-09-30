@@ -162,8 +162,8 @@ class TrapArranger:
                 is_drop2 = 16 <= bar < 20
                 is_outro = 20 <= bar < 24
             else:
-                is_intro = False # No true intro
-                is_drop1 = bar < 8
+                is_intro = bar < 4 # Changed from No True Intro to 4-bar Intro to satisfy constraints
+                is_drop1 = 4 <= bar < 8
                 is_breakdown = 8 <= bar < 12
                 # We'll treat bars 12-16 as Verse (similar to Breakdown but with some drums)
                 is_verse = 12 <= bar < 16
@@ -258,7 +258,7 @@ class TrapArranger:
 
             # Bars 5-12 (Drop 1)
             elif is_drop1:
-                if (arrangement_flow == 0 and bar == 4) or (arrangement_flow == 1 and bar == 0):
+                if (arrangement_flow == 0 and bar == 4) or (arrangement_flow == 1 and bar == 4):
                     for s_loop in synth_loops:
                         safe_add(s_loop, start_beat, metadata={"duration": 8 * self.bar_duration_sec})
                     safe_add("fx_oneshot", start_beat) # Impact downbeat

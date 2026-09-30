@@ -54,12 +54,23 @@ def test_sample_library_loads_all(mock_library_dir):
 def test_trap_arranger_timeline(mock_library_dir):
     library = SampleLibrary(mock_library_dir)
     arranger = TrapArranger()
-    timeline = arranger.create_timeline(library)
 
-    assert len(timeline) > 0
+    # Test across multiple seeds to ensure logic holds for all flows
+    for seed in [1, 42, 999, 1337]:
+        timeline = arranger.create_timeline(library, variation_seed=seed)
+        assert len(timeline) > 0
 
-    # Check total duration calculation
-    assert 41.0 <= arranger.total_duration_seconds <= 43.5
+        # Check total duration calculation
+        assert 41.0 <= arranger.total_duration_seconds <= 43.5
+
+        # Enforce that no 808 plays during the first 4 bars (Intro length)
+        # Intro duration in seconds = 4 bars * 4 beats * beat_duration
+        intro_duration_sec = 4 * 4 * arranger.beat_duration_sec
+        eight08_events = [e for e in timeline if e["category"] == "808s"]
+
+        if len(eight08_events) > 0:
+            first_808_time = min(e["time"] for e in eight08_events)
+            assert first_808_time >= intro_duration_sec - 0.001, f"Seed {seed}: 808 triggered too early during intro at {first_808_time}s"
 
     # Check snare placement on beat 3 during drop 1 (Bars 5-12, indexing 4-11)
     # Snares are on beat 3 (index 2 of the bar)
