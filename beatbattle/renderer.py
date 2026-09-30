@@ -202,9 +202,9 @@ class AudioRenderer:
 
             # Mono Summing for Low-End (kicks, 808s)
             if category in ["kicks", "808s"]:
-                mono = np.mean(audio_data, axis=0)
-                audio_data[0] = mono
-                audio_data[1] = mono
+                if audio_data.ndim > 1:
+                    mono = np.mean(audio_data, axis=0, keepdims=True)
+                    audio_data = np.repeat(mono, 2, axis=0)
 
             metadata = event.get("metadata", {})
 
@@ -238,10 +238,10 @@ class AudioRenderer:
             target_gains = {
                 "kicks": -6.0,
                 "808s": -7.5, # -1.5 relative to kick
-                "snares": -5.0, # +1.0 relative to kick (was -8.0)
-                "claps": -5.0,
-                "hihats": -14.0, # -8.0 relative to kick
-                "open_hats": -14.0,
+                "snares": -4.5, # +1.5 relative to kick
+                "claps": -4.5,
+                "hihats": -16.0, # -10.0 relative to kick
+                "open_hats": -16.0,
                 "perc_oneshot": -16.0, # -10.0 relative to kick
                 "perc_loop": -16.0,
                 "vox_oneshot": -18.0, # -12.0 relative to kick
@@ -384,9 +384,9 @@ class AudioRenderer:
                     if start_time_sec <= kt < start_time_sec + (audio_data.shape[1] / sr):
                         duck_start_sample = int((kt - start_time_sec) * sr)
 
-                        # Ducking params: -4dB is ~0.63 linear, 80ms decay
-                        ducking_linear = 10 ** (-4 / 20)
-                        decay_samples = int(0.08 * sr)
+                        # Ducking params: -3dB is ~0.707 linear, 40ms decay
+                        ducking_linear = 10 ** (-3.0 / 20)
+                        decay_samples = int(0.040 * sr)
 
                         duck_end_sample = min(duck_start_sample + decay_samples, audio_data.shape[1])
                         actual_decay_len = duck_end_sample - duck_start_sample
