@@ -53,8 +53,10 @@ class SampleLibrary:
                 self._add_to_library("open_hats", file_path)
             elif "hihat" in search_str or "hi_hat" in search_str or "hat" in search_str or "hh" in search_str:
                 self._add_to_library("hihats", file_path)
-            elif "snare" in search_str or "clap" in search_str or "rim" in search_str or "sd" in search_str:
+            elif "snare" in search_str or "rim" in search_str or "sd" in search_str:
                 self._add_to_library("snares", file_path)
+            elif "clap" in search_str:
+                self._add_to_library("claps", file_path)
             elif "perc" in search_str:
                 duration = self._get_duration(file_path)
                 if duration < 1.2:

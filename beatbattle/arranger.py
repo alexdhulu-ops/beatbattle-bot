@@ -138,17 +138,45 @@ class TrapArranger:
         # Half-Time Section (30% chance)
         half_time_section = rng.random() < 0.3
 
+        # Intro Lead Synth Choice (Balanced round-robin/uniform across seeds)
+        intro_synth = rng.choice(active_synths) if active_synths else None
+
+        # Kick Presence Probability (Active in 70% of generated beats)
+        kick_active = rng.random() < 0.70
+
         # Kick Templates (3 global variations)
         # 0: Standard bounce
         # 1: Heavy off-beat syncopation
         # 2: Sparse bounce
         kick_template = rng.choice([0, 1, 2])
 
+        # Open Hats Presence Probability
+        open_hat_active = rng.random() < 0.70
+
         # Hihat Subdivision Templates (3 global variations)
         # 0: Straight 8ths (every 0.5)
         # 1: Rolling triplets (approximation)
         # 2: Bouncy syncopated (sparse)
         hihat_template = rng.choice([0, 1, 2])
+
+        # Snare/Clap Layering Selection
+        # If both are available, randomly choose whether to use Snare, Clap, or Both
+        has_snare = library.get_sample("snares") is not None
+        has_clap = library.get_sample("claps") is not None
+
+        active_snare_layers = []
+        if has_snare and has_clap:
+            layer_choice = rng.choice([0, 1, 2])
+            if layer_choice == 0:
+                active_snare_layers = ["snares"]
+            elif layer_choice == 1:
+                active_snare_layers = ["claps"]
+            else:
+                active_snare_layers = ["snares", "claps"]
+        elif has_snare:
+            active_snare_layers = ["snares"]
+        elif has_clap:
+            active_snare_layers = ["claps"]
 
         for bar in range(self.total_bars):
             start_beat = bar * self.beats_per_bar
@@ -233,11 +261,11 @@ class TrapArranger:
 
                     safe_add("fx_oneshot", start_beat) # Impact downbeat bar 1
 
-                    for s_loop in synth_loops:
-                        safe_add(s_loop, start_beat, metadata=intro_metadata)
+                    if intro_synth and "loop" in intro_synth:
+                        safe_add(intro_synth, start_beat, metadata=intro_metadata)
 
                 # Short melodies (syncopated arps/hits)
-                for s_one in synth_oneshots:
+                if intro_synth and "oneshot" in intro_synth:
                     # Rhythmic Trap Pattern: beats 0, 1.5, 2.5, 3.75
                     arp_beats = [0, 1.5, 2.5, 3.75]
                     for ab in arp_beats:
@@ -245,10 +273,11 @@ class TrapArranger:
                         # Optionally drop octave down for some hits
                         if rng.random() < 0.2:
                             pitch -= 12
-                        safe_add(s_one, start_beat + ab, metadata={"pitch_shift": int(pitch)})
+                        safe_add(intro_synth, start_beat + ab, metadata={"pitch_shift": int(pitch)})
 
                 if bar >= 2: # Bars 3-4 (index 2-3)
-                    safe_add("snares", start_beat + 2) # Beat 3
+                    for layer in active_snare_layers:
+                        safe_add(layer, start_beat + 2) # Beat 3
                 if bar == 3: # Bar 4
                     if rng.random() < 0.33:
                         safe_add("fx_oneshot", start_beat + 3, metadata={"tape_stop": True}) # Pre-drop transition bar 4 beat 4
@@ -276,9 +305,12 @@ class TrapArranger:
                             safe_add(s_one, start_beat + ab + 0.25, metadata={"pitch_shift": int(pitch), "attenuate": -6.0})
                         safe_add(s_one, start_beat + ab, metadata={"pitch_shift": int(pitch)})
 
-                safe_add("kicks", start_beat) # Kick on beat 1
+                # 808s with ducking metadata matching kicks and pitch
+                safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
+                if kick_active:
+                    safe_add("kicks", start_beat) # Kick on beat 1 locking to 808
 
-                # Vary kick syncopation based on global template
+                # Vary syncopation based on global template
                 kick_hits = []
                 if kick_template == 0:
                     kick_hits = [1.5]
@@ -288,13 +320,12 @@ class TrapArranger:
                     kick_hits = [2.75, 3.5]
 
                 for k_pos in kick_hits:
-                    safe_add("kicks", start_beat + k_pos)
                     safe_add("808s", start_beat + k_pos, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
+                    if kick_active:
+                        safe_add("kicks", start_beat + k_pos) # Lock kick to 808
 
-                # 808s with ducking metadata matching kicks and pitch
-                safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
-
-                safe_add("snares", start_beat + 2) # Snare on beat 3
+                for layer in active_snare_layers:
+                    safe_add(layer, start_beat + 2) # Snare/Clap on beat 3
 
                 # Hi-hat Subdivision
                 if hihat_template == 0:
@@ -319,7 +350,9 @@ class TrapArranger:
                     safe_add("hihats", start_beat + roll_start + 0.25, metadata={"velocity": 0.9, "pan": -0.8})
                     safe_add("hihats", start_beat + roll_start + 0.375, metadata={"velocity": 1.0, "pan": 0.8})
 
-                safe_add("open_hats", start_beat + 1.5, metadata={"pan": main_hihat_pan})
+                if open_hat_active:
+                    safe_add("open_hats", start_beat + 1.5, metadata={"pan": main_hihat_pan})
+                    safe_add("open_hats", start_beat + 3.5, metadata={"pan": main_hihat_pan})
 
                 # Syncopated ghost hits and vocals
                 if is_turnaround:
@@ -349,12 +382,14 @@ class TrapArranger:
                     safe_add("fx_oneshot", start_beat + 3) # Pre-drop transition
 
                 if is_verse:
-                    safe_add("kicks", start_beat)
-                    safe_add("kicks", start_beat + 2.5)
                     safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
+                    if kick_active:
+                        safe_add("kicks", start_beat)
+                        safe_add("kicks", start_beat + 2.5)
 
                 # Light percussion
-                safe_add("snares", start_beat + 2)
+                for layer in active_snare_layers:
+                    safe_add(layer, start_beat + 2)
                 safe_add("perc_oneshot", start_beat + 1.75, metadata={"pan": opposite_perc_pan, "pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
 
                 # Sparse hihats
@@ -380,15 +415,16 @@ class TrapArranger:
                             safe_add(s_one, start_beat + ab + 0.25, metadata={"pitch_shift": int(pitch), "attenuate": -6.0})
                         safe_add(s_one, start_beat + ab, metadata={"pitch_shift": int(pitch)})
 
-                # Kick variation
-                safe_add("kicks", start_beat)
-                safe_add("kicks", start_beat + 1.5)
-                safe_add("kicks", start_beat + 3.5)
-
+                # 808s and Kick variation locking
                 safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
                 safe_add("808s", start_beat + 1.5, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
+                if kick_active:
+                    safe_add("kicks", start_beat)
+                    safe_add("kicks", start_beat + 1.5)
+                    safe_add("kicks", start_beat + 3.5)
 
-                safe_add("snares", start_beat + 2)
+                for layer in active_snare_layers:
+                    safe_add(layer, start_beat + 2)
 
                 # Aggressive hihat rolls (1/16 triplets approximation and 1/32)
                 # Alternating behavior
@@ -424,8 +460,9 @@ class TrapArranger:
                 safe_add("perc_oneshot", start_beat + 1.5, metadata={"pan": opposite_perc_pan, "pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
 
                 if bar < 22: # Cut 808 and kicks at bar 23 (index 22)
-                    safe_add("kicks", start_beat)
                     safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch})
+                    if kick_active:
+                        safe_add("kicks", start_beat)
 
         return events
 
