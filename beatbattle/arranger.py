@@ -4,10 +4,19 @@ Pattern and song timeline generator.
 from typing import List, Dict, Any
 import numpy as np
 import soundfile as sf
-from beatbattle.pitch import detect_fundamental_freq, freq_to_midi, constrain_to_minor_scale, constrain_to_root_or_fifth
+from beatbattle.pitch import detect_fundamental_freq, freq_to_midi, key_to_midi, constrain_to_minor_scale, constrain_to_root_or_fifth
 
 
-def get_midi_note(file_path: str, fmin: float, fmax: float) -> float:
+def get_midi_note(file_path: str, library: Any, category: str, fmin: float, fmax: float) -> float:
+    # First, try to use parsed metadata from the filename (e.g. "_Am_")
+    if file_path:
+        meta = library.get_metadata(category)
+        if meta and "key" in meta:
+            parsed_midi = key_to_midi(meta["key"])
+            if parsed_midi > 0:
+                return parsed_midi
+
+    # Fallback to FFT autocorrelation pitch detection
     try:
         data, sr = sf.read(file_path, frames=44100 * 2)
         freq = detect_fundamental_freq(data, sr, fmin=fmin, fmax=fmax)
@@ -56,16 +65,19 @@ class TrapArranger:
         events = []
 
         # Detect root keys to align 808s and tonal one-shots to the synth
-        synth_path = (
-            library.get_sample("synth_loop_1") or
-            library.get_sample("synth_oneshot_1") or
-            library.get_sample("synth_loop_2") or
-            library.get_sample("synth_oneshot_2")
-        )
+        synth_cat = None
+        synth_path = None
+        for cat in ["synth_loop_1", "synth_oneshot_1", "synth_loop_2", "synth_oneshot_2"]:
+            p = library.get_sample(cat)
+            if p:
+                synth_path = p
+                synth_cat = cat
+                break
+
         bass_path = library.get_sample("808s")
 
-        melody_note = get_midi_note(synth_path, fmin=100.0, fmax=800.0) if synth_path else 60.0
-        bass_note = get_midi_note(bass_path, fmin=35.0, fmax=95.0) if bass_path else 60.0
+        melody_note = get_midi_note(synth_path, library, synth_cat, fmin=100.0, fmax=800.0) if synth_path else 60.0
+        bass_note = get_midi_note(bass_path, library, "808s", fmin=35.0, fmax=95.0) if bass_path else 60.0
 
         # Calculate base shift required to match the 808 to the melody's root key
         # Round the shift strictly to the nearest integer semitone
@@ -86,7 +98,7 @@ class TrapArranger:
         for cat in ["vox_oneshot", "perc_oneshot"]:
             cat_path = library.get_sample(cat)
             if cat_path:
-                cat_note = get_midi_note(cat_path, fmin=100.0, fmax=800.0)
+                cat_note = get_midi_note(cat_path, library, cat, fmin=100.0, fmax=800.0)
                 raw_shift = round((melody_note % 12) - (cat_note % 12))
                 tonal_oneshots_shift[cat] = constrain_to_root_or_fifth(raw_shift)
 
@@ -138,6 +150,24 @@ class TrapArranger:
 
         # Half-Time Section (30% chance)
         half_time_section = rng.random() < 0.3
+
+        def get_hihat_vel_and_swing(beat_pos):
+            # Alternating accents with jitter
+            is_on_beat = (beat_pos % 1.0) < 0.1
+            base_vel = rng.uniform(0.85, 0.95) if is_on_beat else rng.uniform(0.65, 0.80)
+            jitter = rng.uniform(-0.05, 0.05)
+            vel = max(0.0, min(1.0, base_vel + jitter))
+
+            # Swing micro-timing (2-5ms delay on off-beats)
+            swing_beats = 0.0
+            if not is_on_beat:
+                swing_ms = rng.integers(2, 6) # 2 to 5 ms
+                swing_beats = (swing_ms / 1000.0) / self.beat_duration_sec
+
+            return vel, swing_beats
+
+        def get_snare_vel():
+            return rng.uniform(0.90, 1.0)
 
         # Intro Lead Synth Choice (Balanced round-robin/uniform across seeds)
         intro_synth = rng.choice(active_synths) if active_synths else None
@@ -200,13 +230,14 @@ class TrapArranger:
                 is_outro = 20 <= bar < 24
 
             # Pre-Drop Break Logic (Cut drums right before drop)
+            def is_pre_drop_bar():
+                return (arrangement_flow == 0 and bar in [3, 15]) or (arrangement_flow == 1 and bar in [7, 15])
+
             def should_skip_drum_beat(beat_time):
                 local_beat = beat_time - start_beat
-                if pre_drop_break:
-                    # If this bar precedes a drop (Bar 3 or Bar 15 in flow 0, Bar 7 or 15 in flow 1)
-                    if (arrangement_flow == 0 and bar in [3, 15]) or (arrangement_flow == 1 and bar in [7, 15]):
-                        if local_beat >= 2.0: # Cut last 2 beats
-                            return True
+                if pre_drop_break and is_pre_drop_bar():
+                    if local_beat >= 2.0: # Cut drums last 2 beats
+                        return True
                 return False
 
             def safe_add(category: str, beat_time: float, metadata: Dict[str, Any] = None):
@@ -216,7 +247,25 @@ class TrapArranger:
                 if category.startswith("vox_") and category not in active_vox:
                     return
 
-                # Don't cut melodies, only drums/bass on the cut sections
+                metadata = metadata or {}
+
+                # Apply Groove Humanization
+                if category in ["hihats", "open_hats"]:
+                    vel, swing = get_hihat_vel_and_swing(beat_time)
+                    if "velocity" not in metadata:
+                        metadata["velocity"] = vel
+                    beat_time += swing
+                elif category in ["snares", "claps"]:
+                    if "velocity" not in metadata:
+                        metadata["velocity"] = get_snare_vel()
+
+                # Pre-Drop Silence / Respiration: Cut all melodic instruments and bass on the final beat (beat 3 to 4) before the drop
+                local_beat = beat_time - start_beat
+                if is_pre_drop_bar() and local_beat >= 3.0:
+                    if category.startswith("synth_") or category == "808s" or category == "kicks":
+                        return
+
+                # Regular drum skipping
                 if category.startswith("synth_") or category.startswith("fx") or category.startswith("vox"):
                     add_event(category, beat_time, metadata)
                 elif not should_skip_drum_beat(beat_time):
@@ -289,6 +338,17 @@ class TrapArranger:
                     for layer in active_snare_layers:
                         safe_add(layer, start_beat + 2) # Beat 3
                 if bar == 3: # Bar 4
+                    # Accelerating snare fill on the last bar of the intro (beats 2.0 to 4.0)
+                    for layer in active_snare_layers:
+                        # 8th notes (2.0, 2.5)
+                        safe_add(layer, start_beat + 2.0, metadata={"velocity": 0.6})
+                        safe_add(layer, start_beat + 2.5, metadata={"velocity": 0.7})
+                        # 16th notes (3.0, 3.25, 3.5, 3.75)
+                        safe_add(layer, start_beat + 3.0, metadata={"velocity": 0.8})
+                        safe_add(layer, start_beat + 3.25, metadata={"velocity": 0.85})
+                        safe_add(layer, start_beat + 3.5, metadata={"velocity": 0.95})
+                        safe_add(layer, start_beat + 3.75, metadata={"velocity": 1.0})
+
                     if rng.random() < 0.33:
                         safe_add("fx_oneshot", start_beat + 3, metadata={"tape_stop": True}) # Pre-drop transition bar 4 beat 4
                     else:
