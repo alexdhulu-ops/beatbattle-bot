@@ -105,31 +105,108 @@ class TrapArranger:
         main_hihat_pan = rng.choice([-0.2, 0.2])
         opposite_perc_pan = -main_hihat_pan
 
-        synth_loops = [k for k in library.library.keys() if k.startswith("synth_loop_")]
-        synth_oneshots = [k for k in library.library.keys() if k.startswith("synth_oneshot_")]
+        all_synths = [k for k in library.library.keys() if k.startswith("synth_")]
+
+        # Synth Layering Logic (25% Solo, 50% Duo, 25% Trio)
+        synth_count = rng.choice([1, 2, 3], p=[0.25, 0.50, 0.25])
+        active_synths = rng.choice(all_synths, size=min(synth_count, len(all_synths)), replace=False).tolist() if all_synths else []
+
+        synth_loops = [s for s in active_synths if "loop" in s]
+        synth_oneshots = [s for s in active_synths if "oneshot" in s]
+
+        # FX / Vocals Layering Logic
+        all_fx = [k for k in library.library.keys() if k.startswith("fx_")]
+        all_vox = [k for k in library.library.keys() if k.startswith("vox_")]
+
+        active_fx = rng.choice(all_fx, size=rng.integers(0, len(all_fx) + 1), replace=False).tolist() if all_fx else []
+        active_vox = rng.choice(all_vox, size=rng.integers(0, len(all_vox) + 1), replace=False).tolist() if all_vox else []
 
         # Minor pentatonic intervals for short melodies (0, 3, 5, 7, 10)
         pentatonic_intervals = [0, 3, 5, 7, 10]
 
+        # 808 Bassline Algorithms
+        bass_algorithm = rng.choice(["root_pedal", "octave_bounce", "walking"])
+
+        # Arrangement Flow
+        # 0: Intro -> Drop -> Breakdown -> Drop -> Outro (Standard)
+        # 1: Drop -> Breakdown -> Verse -> Drop -> Outro (Immediate Drop)
+        arrangement_flow = rng.choice([0, 1])
+
+        # Pre-Drop Cut Break (60% chance)
+        pre_drop_break = rng.random() < 0.6
+
+        # Half-Time Section (30% chance)
+        half_time_section = rng.random() < 0.3
+
+        # Kick Templates (3 global variations)
+        # 0: Standard bounce
+        # 1: Heavy off-beat syncopation
+        # 2: Sparse bounce
+        kick_template = rng.choice([0, 1, 2])
+
+        # Hihat Subdivision Templates (3 global variations)
+        # 0: Straight 8ths (every 0.5)
+        # 1: Rolling triplets (approximation)
+        # 2: Bouncy syncopated (sparse)
+        hihat_template = rng.choice([0, 1, 2])
+
         for bar in range(self.total_bars):
             start_beat = bar * self.beats_per_bar
 
-            # Beat cut check: total beat cut on beats 3 and 4 of bar 4 (index 3) and bar 12 (index 11) for drums/808
+            # Map logical structure blocks based on arrangement flow
+            if arrangement_flow == 0:
+                is_intro = bar < 4
+                is_drop1 = 4 <= bar < 12
+                is_verse = False
+                is_breakdown = 12 <= bar < 16
+                is_drop2 = 16 <= bar < 20
+                is_outro = 20 <= bar < 24
+            else:
+                is_intro = False # No true intro
+                is_drop1 = bar < 8
+                is_breakdown = 8 <= bar < 12
+                # We'll treat bars 12-16 as Verse (similar to Breakdown but with some drums)
+                is_verse = 12 <= bar < 16
+                is_drop2 = 16 <= bar < 20
+                is_outro = 20 <= bar < 24
+
+            # Pre-Drop Break Logic (Cut drums right before drop)
             def should_skip_drum_beat(beat_time):
-                if bar in [3, 11] and (beat_time - start_beat) >= 2.0:
-                    return True
+                local_beat = beat_time - start_beat
+                if pre_drop_break:
+                    # If this bar precedes a drop (Bar 3 or Bar 15 in flow 0, Bar 7 or 15 in flow 1)
+                    if (arrangement_flow == 0 and bar in [3, 15]) or (arrangement_flow == 1 and bar in [7, 15]):
+                        if local_beat >= 2.0: # Cut last 2 beats
+                            return True
                 return False
 
             def safe_add(category: str, beat_time: float, metadata: Dict[str, Any] = None):
+                # Only add if it's an active FX/Vox, or if it's not FX/Vox
+                if category.startswith("fx_") and category not in active_fx:
+                    return
+                if category.startswith("vox_") and category not in active_vox:
+                    return
+
                 # Don't cut melodies, only drums/bass on the cut sections
-                if category.startswith("synth_") or category.startswith("fx"):
+                if category.startswith("synth_") or category.startswith("fx") or category.startswith("vox"):
                     add_event(category, beat_time, metadata)
                 elif not should_skip_drum_beat(beat_time):
                     add_event(category, beat_time, metadata)
 
-            # Determine 808 pitch for this bar, applying base root key shift constrained to natural minor
+            # Determine 808 pitch for this bar based on algorithm
             bar_in_progression = bar % 8
-            raw_pitch = base_808_shift + chord_progression[bar_in_progression]
+
+            if bass_algorithm == "root_pedal":
+                # Stays on root mostly, occasional 5th (7 semitones)
+                current_shift = 0 if rng.random() < 0.8 else 7
+            elif bass_algorithm == "octave_bounce":
+                # Bounces between root and octave
+                current_shift = 0 if bar_in_progression % 2 == 0 else 12
+            else: # "walking"
+                # Wanders between root, minor 3rd (3), 5th (7), minor 7th (10)
+                current_shift = rng.choice([0, 3, 7, 10])
+
+            raw_pitch = base_808_shift + current_shift
             current_pitch = constrain_to_minor_scale(raw_pitch)
 
             # Turnaround glide on bars 4 (index 3) and 8 (index 7)
@@ -142,9 +219,12 @@ class TrapArranger:
             if bar == 0 or bar == 12:
                 safe_add("fx_texture", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "attenuate": -14.0})
 
+            # Dynamic Halftime Pitch Modifier
+            pitch_modifier = -12 if half_time_section and (is_outro or is_verse) else 0
+
             # Bars 1-4 (Intro): melodies, snares/claps on beat 3 on bars 3-4, fx_oneshot, and dry Vox on bar 4
-            if bar < 4:
-                if bar == 0:
+            if is_intro:
+                if bar == 0 or (arrangement_flow == 1 and bar == 4): # first bar of intro block
                     intro_metadata = {"halftime": True, "duration": 4 * self.bar_duration_sec}
                     if rng.random() < 0.5:
                         intro_metadata["filter_sweep_intro"] = True
@@ -177,8 +257,8 @@ class TrapArranger:
                     safe_add("vox_oneshot", start_beat + 3.5, metadata={"pan": 0.5}) # Final half-beat panned right
 
             # Bars 5-12 (Drop 1)
-            elif 4 <= bar < 12:
-                if bar == 4:
+            elif is_drop1:
+                if (arrangement_flow == 0 and bar == 4) or (arrangement_flow == 1 and bar == 0):
                     for s_loop in synth_loops:
                         safe_add(s_loop, start_beat, metadata={"duration": 8 * self.bar_duration_sec})
                     safe_add("fx_oneshot", start_beat) # Impact downbeat
@@ -198,9 +278,7 @@ class TrapArranger:
 
                 safe_add("kicks", start_beat) # Kick on beat 1
 
-                # Vary kick syncopation based on seed (including 16th note off-beats)
-                # Pick randomly between 3 distinct kick syncopation templates
-                kick_template = rng.choice([0, 1, 2])
+                # Vary kick syncopation based on global template
                 kick_hits = []
                 if kick_template == 0:
                     kick_hits = [1.5]
@@ -218,14 +296,19 @@ class TrapArranger:
 
                 safe_add("snares", start_beat + 2) # Snare on beat 3
 
-                # Pick randomly between 2 hi-hat roll densities
-                hihat_density = rng.choice([0, 1])
-
-                # 1/8 hihats (every 0.5 beats)
-                for i in range(8):
-                    if hihat_density == 1 and i % 2 != 0:
-                        continue # sparse hi-hats
-                    safe_add("hihats", start_beat + i * 0.5, metadata={"pan": main_hihat_pan})
+                # Hi-hat Subdivision
+                if hihat_template == 0:
+                    # Straight 8ths
+                    for i in range(8):
+                        safe_add("hihats", start_beat + i * 0.5, metadata={"pan": main_hihat_pan})
+                elif hihat_template == 1:
+                    # Rolling Triplets (approximation)
+                    for i in range(12):
+                        safe_add("hihats", start_beat + i * 0.33, metadata={"pan": main_hihat_pan})
+                elif hihat_template == 2:
+                    # Bouncy Syncopated
+                    for i in [0, 0.5, 0.75, 1.5, 2, 2.25, 3, 3.5]:
+                        safe_add("hihats", start_beat + i, metadata={"pan": main_hihat_pan})
 
                 # Rolls on even bars
                 if bar % 2 == 1: # "Even" in 1-based indexing, odd in 0-based indexing
@@ -243,24 +326,34 @@ class TrapArranger:
                     safe_add("vox_oneshot", start_beat + 2.5, metadata={"pan": -0.5, "pitch_shift": tonal_oneshots_shift.get("vox_oneshot", 0)})
                     safe_add("perc_oneshot", start_beat + 3.75, metadata={"pan": opposite_perc_pan, "pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
 
-            # Bars 13-16 (Breakdown)
-            elif 12 <= bar < 16:
-                if bar == 12:
+            # Bars 13-16 (Breakdown or Verse)
+            elif is_breakdown or is_verse:
+                if (arrangement_flow == 0 and bar == 12) or (arrangement_flow == 1 and bar == 8) or (arrangement_flow == 1 and bar == 12):
+                    verse_meta = {"duration": 4 * self.bar_duration_sec, "filter_sweep": True}
+                    if is_verse and half_time_section:
+                        verse_meta["halftime"] = True
+                        verse_meta["pitch_shift"] = pitch_modifier
+
                     for s_loop in synth_loops:
-                        safe_add(s_loop, start_beat, metadata={"duration": 4 * self.bar_duration_sec, "filter_sweep": True})
+                        safe_add(s_loop, start_beat, metadata=verse_meta)
                     safe_add("vox_loop", start_beat, metadata={"duration": 4 * self.bar_duration_sec, "lpf": 5000, "attenuate": -14.0})
 
                 for s_one in synth_oneshots:
                     # Sparse arpeggio on Breakdown
                     arp_beats = [0, 2]
                     for ab in arp_beats:
-                        pitch = rng.choice(pentatonic_intervals)
+                        pitch = rng.choice(pentatonic_intervals) + pitch_modifier
                         safe_add(s_one, start_beat + ab, metadata={"pitch_shift": int(pitch), "lpf": 2000})
 
-                if bar == 15: # Bar 16
-                    safe_add("fx_oneshot", start_beat + 3) # Pre-drop transition bar 16 beat 4
+                if bar == 15 or bar == 11: # End of Breakdown/Verse block
+                    safe_add("fx_oneshot", start_beat + 3) # Pre-drop transition
 
-                # Light percussion, no 808s or kicks
+                if is_verse:
+                    safe_add("kicks", start_beat)
+                    safe_add("kicks", start_beat + 2.5)
+                    safe_add("808s", start_beat, metadata={"ducking": True, "pitch_shift": current_pitch, "glide": glide})
+
+                # Light percussion
                 safe_add("snares", start_beat + 2)
                 safe_add("perc_oneshot", start_beat + 1.75, metadata={"pan": opposite_perc_pan, "pitch_shift": tonal_oneshots_shift.get("perc_oneshot", 0)})
 
@@ -269,8 +362,8 @@ class TrapArranger:
                     safe_add("hihats", start_beat + i * 1.0, metadata={"pan": main_hihat_pan})
 
             # Bars 17-20 (Second Hard Drop)
-            elif 16 <= bar < 20:
-                if bar == 16:
+            elif is_drop2:
+                if (arrangement_flow == 0 and bar == 16) or (arrangement_flow == 1 and bar == 16):
                     for s_loop in synth_loops:
                         safe_add(s_loop, start_beat, metadata={"duration": 4 * self.bar_duration_sec})
                     safe_add("fx_oneshot", start_beat) # Impact on drop
@@ -311,15 +404,20 @@ class TrapArranger:
                     safe_add("vox_oneshot", start_beat + 3.5, metadata={"pan": 0.5, "pitch_shift": tonal_oneshots_shift.get("vox_oneshot", 0)})
 
             # Bars 21-24 (Outro)
-            elif 20 <= bar < 24:
+            elif is_outro:
                 if bar == 20:
+                    outro_meta = {"duration": 4 * self.bar_duration_sec}
+                    if half_time_section:
+                        outro_meta["halftime"] = True
+                        outro_meta["pitch_shift"] = pitch_modifier
+
                     for s_loop in synth_loops:
-                        safe_add(s_loop, start_beat, metadata={"duration": 4 * self.bar_duration_sec})
+                        safe_add(s_loop, start_beat, metadata=outro_meta)
 
                 for s_one in synth_oneshots:
                     arp_beats = [0, 2]
                     for ab in arp_beats:
-                        pitch = rng.choice(pentatonic_intervals)
+                        pitch = rng.choice(pentatonic_intervals) + pitch_modifier
                         safe_add(s_one, start_beat + ab, metadata={"pitch_shift": int(pitch), "attenuate": -6.0})
 
                 # Light percs on offbeat
