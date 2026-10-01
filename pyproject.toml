@@ -13,7 +13,8 @@ dependencies = [
     "soundfile",
     "numpy",
     "scipy",
-    "typer"
+    "typer",
+    "pydub"
 ]
 
 [project.optional-dependencies]

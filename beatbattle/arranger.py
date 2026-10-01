@@ -9,7 +9,10 @@ from beatbattle.pitch import detect_fundamental_freq, freq_to_midi, constrain_to
 
 def get_midi_note(file_path: str, fmin: float, fmax: float) -> float:
     try:
-        data, sr = sf.read(file_path, frames=44100 * 2)
+        from beatbattle.audio_utils import load_audio
+        data, sr = load_audio(file_path)
+        # load_audio returns shape (channels, samples). We only need mono and a short chunk
+        data = data.mean(axis=0)[:44100 * 2]
         freq = detect_fundamental_freq(data, sr, fmin=fmin, fmax=fmax)
         if freq > 0:
             return freq_to_midi(freq)
@@ -39,7 +42,7 @@ class TrapArranger:
         self.bar_duration_sec = self.beat_duration_sec * self.beats_per_bar
         self.total_duration_seconds = self.bar_duration_sec * self.total_bars
 
-    def create_timeline(self, library: Any, rng: np.random.Generator | None = None) -> List[Dict[str, Any]]:
+    def create_timeline(self, library: Any, rng: np.random.Generator | None = None, unplayed_samples: set = None) -> List[Dict[str, Any]]:
         """
         Creates a 24-bar Trap timeline mapping samples from the SampleLibrary.
 
@@ -53,6 +56,8 @@ class TrapArranger:
         """
         if rng is None:
             rng = np.random.default_rng()
+        if unplayed_samples is None:
+            unplayed_samples = set()
         events = []
 
         # Detect root keys to align 808s and tonal one-shots to the synth
@@ -93,6 +98,8 @@ class TrapArranger:
         def add_event(category: str, beat_time: float, metadata: Dict[str, Any] = None):
             sample_path = library.get_sample(category)
             if sample_path:
+                if category in unplayed_samples:
+                    unplayed_samples.remove(category)
                 time_sec = beat_time * self.beat_duration_sec
                 event = {"sample": sample_path, "time": time_sec, "category": category}
                 if metadata:
@@ -110,17 +117,44 @@ class TrapArranger:
 
         # Synth Layering Logic (25% Solo, 50% Duo, 25% Trio)
         synth_count = rng.choice([1, 2, 3], p=[0.25, 0.50, 0.25])
-        active_synths = rng.choice(all_synths, size=min(synth_count, len(all_synths)), replace=False).tolist() if all_synths else []
+
+        # Priority Injection for Synths
+        unplayed_synths = [s for s in all_synths if s in unplayed_samples]
+        active_synths = []
+        if unplayed_synths:
+            priority_count = min(len(unplayed_synths), synth_count)
+            active_synths = rng.choice(unplayed_synths, size=priority_count, replace=False).tolist()
+
+        remaining_count = synth_count - len(active_synths)
+        if remaining_count > 0:
+            remaining_pool = [s for s in all_synths if s not in active_synths]
+            if remaining_pool:
+                active_synths += rng.choice(remaining_pool, size=min(remaining_count, len(remaining_pool)), replace=False).tolist()
 
         synth_loops = [s for s in active_synths if "loop" in s]
         synth_oneshots = [s for s in active_synths if "oneshot" in s]
 
         # FX / Vocals Layering Logic
         all_fx = [k for k in library.library.keys() if k.startswith("fx_")]
-        all_vox = [k for k in library.library.keys() if k.startswith("vox_")]
+        all_vox = [k for k in library.library.keys() if k.startswith("vox_") or k.startswith("perc_oneshot")]
 
-        active_fx = rng.choice(all_fx, size=rng.integers(0, len(all_fx) + 1), replace=False).tolist() if all_fx else []
-        active_vox = rng.choice(all_vox, size=rng.integers(0, len(all_vox) + 1), replace=False).tolist() if all_vox else []
+        # Priority Injection for FX/Vox
+        unplayed_fx = [f for f in all_fx if f in unplayed_samples]
+        unplayed_vox = [v for v in all_vox if v in unplayed_samples]
+
+        active_fx = []
+        target_fx = rng.integers(1, len(all_fx) + 1) if unplayed_fx else rng.integers(0, len(all_fx) + 1)
+        if unplayed_fx:
+            active_fx = unplayed_fx
+        else:
+            active_fx = rng.choice(all_fx, size=target_fx, replace=False).tolist() if all_fx else []
+
+        active_vox = []
+        target_vox = rng.integers(1, len(all_vox) + 1) if unplayed_vox else rng.integers(0, len(all_vox) + 1)
+        if unplayed_vox:
+            active_vox = unplayed_vox
+        else:
+            active_vox = rng.choice(all_vox, size=target_vox, replace=False).tolist() if all_vox else []
 
         # Minor pentatonic intervals for short melodies (0, 3, 5, 7, 10)
         pentatonic_intervals = [0, 3, 5, 7, 10]
@@ -231,6 +265,15 @@ class TrapArranger:
 
             def safe_add(category: str, beat_time: float, metadata: Dict[str, Any] = None):
                 nonlocal last_vox_position
+
+                # Remap generic hardcoded calls to the active ones in the pool if applicable
+                if category == "fx_oneshot" and active_fx:
+                    # Pick an active fx oneshot (prioritize unplayed via active_fx which already did priority sorting)
+                    fx_oneshots = [f for f in active_fx if "oneshot" in f]
+                    if fx_oneshots: category = fx_oneshots[0]
+                elif category == "perc_oneshot" and active_vox:
+                    perc_oneshots = [p for p in active_vox if "perc_oneshot" in p]
+                    if perc_oneshots: category = perc_oneshots[0]
 
                 # Only add if it's an active FX/Vox, or if it's not FX/Vox
                 if category.startswith("fx_") and category not in active_fx:

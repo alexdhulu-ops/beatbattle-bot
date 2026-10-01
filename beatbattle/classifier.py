@@ -28,7 +28,7 @@ class SampleLibrary:
     def _load_samples(self) -> None:
         """Recursively loads .mp3, and .ogg files and classifies them by keyword."""
         all_files = []
-        valid_extensions = (".mp3", ".ogg")
+        valid_extensions = (".mp3", ".ogg", ".wav")
         for dirpath, _, filenames in os.walk(self.root_dir):
             for f in filenames:
                 if f.lower().endswith(valid_extensions):
@@ -57,16 +57,23 @@ class SampleLibrary:
                 self._add_to_library("claps", file_path)
             elif "perc" in search_str:
                 duration = self._get_duration(file_path)
-                if duration < 1.2:
-                    self._add_to_library("perc_oneshot", file_path)
-                elif duration > 1.5:
-                    self._add_to_library("perc_loop", file_path)
+                if duration > 1.5:
+                    if "perc_loop" not in self.library:
+                        self._add_to_library("perc_loop", file_path)
+                else:
+                    if "perc_oneshot" not in self.library:
+                        self._add_to_library("perc_oneshot", file_path)
+                    else:
+                        self._add_to_library("perc_oneshot_2", file_path)
             elif "fx" in search_str or "riser" in search_str or "impact" in search_str:
                 duration = self._get_duration(file_path)
-                if duration < 1.2:
-                    self._add_to_library("fx_oneshot", file_path)
-                elif duration > 1.5:
+                if duration > 1.5:
                     self._add_to_library("fx_texture", file_path)
+                else:
+                    if "fx_oneshot" not in self.library:
+                        self._add_to_library("fx_oneshot", file_path)
+                    else:
+                        self._add_to_library("fx_oneshot_2", file_path)
             elif any(kw in search_str for kw in ["vox", "vocal", "chant", "acapella", "adlib", "phrase"]):
                 duration = self._get_duration(file_path)
                 if duration < 1.2:

@@ -54,6 +54,7 @@ def generate(
     if base_name.endswith(".wav"):
         base_name = base_name[:-4]
 
+    unplayed_samples = set(library.library.keys())
     rng = np.random.default_rng(seed)
     base_seed = seed if seed is not None else rng.integers(1, 1_000_000)
 
@@ -62,7 +63,7 @@ def generate(
         current_rng = np.random.default_rng(current_seed)
 
         console.print(f"Generating Trap timeline ({i + 1}/{batch})...")
-        timeline = arranger.create_timeline(library, rng=current_rng)
+        timeline = arranger.create_timeline(library, rng=current_rng, unplayed_samples=unplayed_samples)
 
         console.print(f"Rendering audio and applying mastering ({i + 1}/{batch})...")
         raw_audio = renderer.render_timeline(timeline)
