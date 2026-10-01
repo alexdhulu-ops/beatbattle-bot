@@ -46,8 +46,8 @@ class AudioRenderer:
             # scipy.signal.resample processes along the last axis by default
             audio = scipy.signal.resample(audio, new_len, axis=1)
 
-        # High-pass filter at 140 Hz to remove low-end clash
-        hp_cutoff = 140.0 / nyq
+        # High-pass filter at 35-40 Hz to cleanly remove low-end rumble while retaining body
+        hp_cutoff = 38.0 / nyq
         b_hp, a_hp = scipy.signal.butter(2, hp_cutoff, btype='high', analog=False)
         audio = self._apply_biquad(audio, b_hp, a_hp)
 
@@ -258,8 +258,11 @@ class AudioRenderer:
 
             # Per-Track Corrective EQ
             nyq = 0.5 * sr
-            if category in ["perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
-                b_hp, a_hp = scipy.signal.butter(2, 160.0 / nyq, btype='high', analog=False)
+            if category.startswith("synth_"):
+                b_hp, a_hp = scipy.signal.butter(2, 35.0 / nyq, btype='high', analog=False)
+                audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
+            elif category in ["perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
+                b_hp, a_hp = scipy.signal.butter(2, 40.0 / nyq, btype='high', analog=False)
                 audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
             elif category == "808s":
                 b_hp, a_hp = scipy.signal.butter(2, 28.0 / nyq, btype='high', analog=False)
@@ -273,7 +276,7 @@ class AudioRenderer:
                 audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
 
             if category.startswith("synth_"):
-                audio_data = self._process_melody_dsp(audio_data.copy(), metadata)
+                audio_data = self._process_melody_dsp(audio_data, metadata)
 
             # Length trimming for loops (vox_loop, perc_loop, fx_texture, and synth_loop_X)
             if "duration" in metadata and (category.startswith("synth_loop_") or category in ["vox_loop", "perc_loop", "fx_texture"]):
@@ -324,8 +327,6 @@ class AudioRenderer:
 
             # Apply glide and saturation for 808s based on metadata
             if category == "808s":
-                audio_data = audio_data.copy()
-
                 # 808 Monophonic Choke ("cut-self") logic
                 # Find the start time of the next 808
                 next_808_time = None
@@ -377,9 +378,9 @@ class AudioRenderer:
                     if start_time_sec <= kt < start_time_sec + (audio_data.shape[1] / sr):
                         duck_start_sample = int((kt - start_time_sec) * sr)
 
-                        # Ducking params: -3dB is ~0.707 linear, 40ms decay
-                        ducking_linear = 10 ** (-3.0 / 20)
-                        decay_samples = int(0.040 * sr)
+                        # Ducking params: ~4-6 dB dip, 80-120ms release
+                        ducking_linear = 10 ** (-5.0 / 20)
+                        decay_samples = int(0.100 * sr)
 
                         duck_end_sample = min(duck_start_sample + decay_samples, audio_data.shape[1])
                         actual_decay_len = duck_end_sample - duck_start_sample
@@ -398,11 +399,13 @@ class AudioRenderer:
 
             master_buffer[:, start_sample:end_sample] += audio_data
 
-        # Apply 0.5s fade out at the end
-        fade_sec = 0.5
+        # Apply 1.5s exponential fade out at the end to naturally decay tails
+        fade_sec = 1.5
         fade_samples = int(fade_sec * self.sample_rate)
         if master_buffer.shape[1] >= fade_samples:
-             fade_curve = np.linspace(1.0, 0.0, fade_samples)
+             # Exponential curve down to 0
+             t = np.linspace(1.0, 0.0, fade_samples)
+             fade_curve = t ** 2.0
              master_buffer[:, -fade_samples:] *= fade_curve
 
         return master_buffer

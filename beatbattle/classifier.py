@@ -4,6 +4,7 @@ Sample analysis and tagging.
 from typing import Dict, Optional
 import os
 import soundfile as sf
+import re
 
 
 class SampleLibrary:
@@ -22,6 +23,7 @@ class SampleLibrary:
         """
         self.root_dir = root_dir
         self.library: Dict[str, str] = {}
+        self.metadata: Dict[str, Dict[str, str]] = {}
         self._load_samples()
         self._validate_library()
 
@@ -116,6 +118,17 @@ class SampleLibrary:
         """Adds to library if not already populated to keep the first match."""
         if category not in self.library:
             self.library[category] = file_path
+
+            # Extract key signature from filename (e.g. _Am_, _C#_, -Fm-)
+            file_name = os.path.basename(file_path)
+            key_match = re.search(r'[_ -]([A-G][#b]?[mM]?)[_ -\.]', file_name)
+            if key_match:
+                key = key_match.group(1)
+                self.metadata[category] = {"key": key}
+
+    def get_metadata(self, category: str) -> Dict[str, str]:
+        """Gets the metadata dictionary for a specific category."""
+        return self.metadata.get(category, {})
 
     def _validate_library(self) -> None:
         """
