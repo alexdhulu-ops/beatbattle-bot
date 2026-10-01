@@ -4,19 +4,10 @@ Pattern and song timeline generator.
 from typing import List, Dict, Any
 import numpy as np
 import soundfile as sf
-from beatbattle.pitch import detect_fundamental_freq, freq_to_midi, key_to_midi, constrain_to_minor_scale, constrain_to_root_or_fifth
+from beatbattle.pitch import detect_fundamental_freq, freq_to_midi, constrain_to_minor_scale, constrain_to_root_or_fifth
 
 
-def get_midi_note(file_path: str, library: Any, category: str, fmin: float, fmax: float) -> float:
-    # First, try to use parsed metadata from the filename (e.g. "_Am_")
-    if file_path:
-        meta = library.get_metadata(category)
-        if meta and "key" in meta:
-            parsed_midi = key_to_midi(meta["key"])
-            if parsed_midi > 0:
-                return parsed_midi
-
-    # Fallback to FFT autocorrelation pitch detection
+def get_midi_note(file_path: str, fmin: float, fmax: float) -> float:
     try:
         data, sr = sf.read(file_path, frames=44100 * 2)
         freq = detect_fundamental_freq(data, sr, fmin=fmin, fmax=fmax)
@@ -65,19 +56,16 @@ class TrapArranger:
         events = []
 
         # Detect root keys to align 808s and tonal one-shots to the synth
-        synth_cat = None
-        synth_path = None
-        for cat in ["synth_loop_1", "synth_oneshot_1", "synth_loop_2", "synth_oneshot_2"]:
-            p = library.get_sample(cat)
-            if p:
-                synth_path = p
-                synth_cat = cat
-                break
-
+        synth_path = (
+            library.get_sample("synth_loop_1") or
+            library.get_sample("synth_oneshot_1") or
+            library.get_sample("synth_loop_2") or
+            library.get_sample("synth_oneshot_2")
+        )
         bass_path = library.get_sample("808s")
 
-        melody_note = get_midi_note(synth_path, library, synth_cat, fmin=100.0, fmax=800.0) if synth_path else 60.0
-        bass_note = get_midi_note(bass_path, library, "808s", fmin=35.0, fmax=95.0) if bass_path else 60.0
+        melody_note = get_midi_note(synth_path, fmin=100.0, fmax=800.0) if synth_path else 60.0
+        bass_note = get_midi_note(bass_path, fmin=35.0, fmax=95.0) if bass_path else 60.0
 
         # Calculate base shift required to match the 808 to the melody's root key
         # Round the shift strictly to the nearest integer semitone
@@ -98,7 +86,7 @@ class TrapArranger:
         for cat in ["vox_oneshot", "perc_oneshot"]:
             cat_path = library.get_sample(cat)
             if cat_path:
-                cat_note = get_midi_note(cat_path, library, cat, fmin=100.0, fmax=800.0)
+                cat_note = get_midi_note(cat_path, fmin=100.0, fmax=800.0)
                 raw_shift = round((melody_note % 12) - (cat_note % 12))
                 tonal_oneshots_shift[cat] = constrain_to_root_or_fifth(raw_shift)
 

@@ -14,24 +14,6 @@ def freq_to_midi(freq: float) -> float:
         return 0.0
     return 69 + 12 * np.log2(freq / 440.0)
 
-def key_to_midi(key_str: str) -> float:
-    """
-    Converts a standard key string (e.g. 'Am', 'C#', 'F') to a base MIDI note number (octave 4).
-    """
-    notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-    # Normalize
-    k = key_str.replace('m', '').replace('M', '')
-    # Handle flats
-    flats_to_sharps = {'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#'}
-    if k in flats_to_sharps:
-        k = flats_to_sharps[k]
-
-    try:
-        idx = notes.index(k)
-        return 60.0 + idx # C4 = 60
-    except ValueError:
-        return 0.0
-
 
 def detect_fundamental_freq(audio: np.ndarray, sample_rate: int, fmin: float = 35.0, fmax: float = 90.0, required_confidence: float = 0.65) -> float:
     """
