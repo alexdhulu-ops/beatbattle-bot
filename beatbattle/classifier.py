@@ -26,7 +26,7 @@ class SampleLibrary:
         self._validate_library()
 
     def _load_samples(self) -> None:
-        """Recursively loads .mp3, and .ogg files and classifies them by keyword."""
+        """Recursively loads .mp3, .wav, and .ogg files and classifies them by keyword."""
         all_files = []
         valid_extensions = (".mp3", ".ogg", ".wav")
         for dirpath, _, filenames in os.walk(self.root_dir):

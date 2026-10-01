@@ -10,9 +10,10 @@ from beatbattle.pitch import detect_fundamental_freq, freq_to_midi, constrain_to
 def get_midi_note(file_path: str, fmin: float, fmax: float) -> float:
     try:
         from beatbattle.audio_utils import load_audio
-        data, sr = load_audio(file_path)
+        # Ensure we request mono to satisfy pipeline requirements
+        data, sr = load_audio(file_path, mono=True)
         # load_audio returns shape (channels, samples). We only need mono and a short chunk
-        data = data.mean(axis=0)[:44100 * 2]
+        data = data[0][:44100 * 2]
         freq = detect_fundamental_freq(data, sr, fmin=fmin, fmax=fmax)
         if freq > 0:
             return freq_to_midi(freq)
