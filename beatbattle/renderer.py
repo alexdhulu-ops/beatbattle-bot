@@ -202,14 +202,7 @@ class AudioRenderer:
 
             metadata = event.get("metadata", {})
 
-            # General effects: Panning
-            if "pan" in metadata:
-                # pan value between -1.0 (left) and 1.0 (right)
-                pan = metadata["pan"]
-                left_gain = np.cos((pan + 1) * np.pi / 4)
-                right_gain = np.sin((pan + 1) * np.pi / 4)
-                audio_data[0] *= left_gain
-                audio_data[1] *= right_gain
+
 
             # General effects: LPF
             if "lpf" in metadata:
@@ -244,11 +237,18 @@ class AudioRenderer:
             target_gain = -9.5 if category.startswith("synth_") else target_gains.get(category)
 
             if target_gain is not None:
-                # Calculate current peak to normalize it, then apply target gain
-                current_peak = np.max(np.abs(audio_data))
-                if current_peak > 0:
-                    audio_data = audio_data / current_peak
-                audio_data *= (10 ** (target_gain / 20.0))
+                if category.startswith("synth_loop_"):
+                    # Normalize melodic loops to a consistent RMS target (-16 dBFS RMS)
+                    target_rms = 10 ** (-16.0 / 20.0)
+                    current_rms = np.sqrt(np.mean(audio_data**2))
+                    if current_rms > 0:
+                        audio_data = audio_data * (target_rms / current_rms)
+                else:
+                    # Calculate current peak to normalize it, then apply target gain for other stems
+                    current_peak = np.max(np.abs(audio_data))
+                    if current_peak > 0:
+                        audio_data = audio_data / current_peak
+                    audio_data *= (10 ** (target_gain / 20.0))
 
             # Per-Track Corrective EQ
             nyq = 0.5 * sr
@@ -312,8 +312,10 @@ class AudioRenderer:
                         duck_end_sample = min(duck_start_sample + decay_samples, audio_data.shape[1])
                         actual_decay_len = duck_end_sample - duck_start_sample
 
-                        # Apply ducking envelope (fast attack, linear decay)
-                        envelope = np.linspace(ducking_linear, 1.0, actual_decay_len)
+                        # Apply exponential ducking envelope (smooth release)
+                        # tau * 5 approx = release time. If release is actual_decay_len, tau = actual_decay_len / 5
+                        t = np.linspace(0, 5, actual_decay_len)
+                        envelope = ducking_linear + (1.0 - ducking_linear) * (1.0 - np.exp(-t))
                         audio_data[:, duck_start_sample:duck_end_sample] *= envelope
 
             # General effects: Pitch Shifting (used for 808s and tonal one-shots)
@@ -343,10 +345,12 @@ class AudioRenderer:
                         # Truncate the current 808 right before the next one hits
                         audio_data = audio_data[:, :samples_until_next]
 
-                        # Apply a 5ms linear fade-out to prevent clicks when choking
-                        fade_samples = int(0.005 * sr)
+                        # Apply a 10ms micro fade-out envelope to prevent clicks when choking
+                        fade_samples = int(0.010 * sr)
                         if audio_data.shape[1] > fade_samples:
-                            fade_curve = np.linspace(1.0, 0.0, fade_samples)
+                            # Exponential-like fade out for smoother tail
+                            t = np.linspace(1.0, 0.0, fade_samples)
+                            fade_curve = t ** 2.0
                             audio_data[:, -fade_samples:] *= fade_curve
                 glide = metadata.get("glide", False)
 
@@ -367,9 +371,24 @@ class AudioRenderer:
 
                         audio_data[:, :glide_samples] = glided_chunk
 
-            # Volume scaling for hihat velocity
+            # Volume scaling for velocity
             if "velocity" in event.get("metadata", {}):
                 audio_data = audio_data * event["metadata"]["velocity"]
+
+            # Stereo Panning (Acoustic Separation)
+            pan = metadata.get("pan", 0.0)
+            if category in ["kicks", "808s"]:
+                pan = 0.0  # Strictly mono/centered
+
+            # Apply constant-power panning
+            # pan ranges from -1.0 (left) to 1.0 (right)
+            if pan != 0.0 and audio_data.shape[0] == 2:
+                # Calculate angle (theta) from pan
+                theta = (pan + 1.0) * (np.pi / 4.0)
+                left_gain = np.cos(theta)
+                right_gain = np.sin(theta)
+                audio_data[0, :] *= left_gain
+                audio_data[1, :] *= right_gain
 
             # Very basic sidechain simulation for 808s
             if category == "808s":
@@ -385,8 +404,10 @@ class AudioRenderer:
                         duck_end_sample = min(duck_start_sample + decay_samples, audio_data.shape[1])
                         actual_decay_len = duck_end_sample - duck_start_sample
 
-                        # Apply ducking envelope (fast attack, linear decay)
-                        envelope = np.linspace(ducking_linear, 1.0, actual_decay_len)
+                        # Apply exponential ducking envelope (smooth release)
+                        # tau * 5 approx = release time. If release is actual_decay_len, tau = actual_decay_len / 5
+                        t = np.linspace(0, 5, actual_decay_len)
+                        envelope = ducking_linear + (1.0 - ducking_linear) * (1.0 - np.exp(-t))
                         audio_data[:, duck_start_sample:duck_end_sample] *= envelope
 
             end_sample = start_sample + audio_data.shape[1]
