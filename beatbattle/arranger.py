@@ -313,6 +313,11 @@ class TrapArranger:
                 elif category in ["snares", "claps"]:
                     if "velocity" not in metadata:
                         metadata["velocity"] = get_snare_vel()
+                    if "pan" not in metadata:
+                        metadata["pan"] = 0.05 if rng.random() > 0.5 else -0.05
+                elif category.startswith("perc_") or category.startswith("fx_"):
+                    if "pan" not in metadata:
+                        metadata["pan"] = rng.uniform(0.40, 0.60) * rng.choice([-1, 1])
 
                 # Pre-Drop Silence / Respiration: Cut all melodic instruments and bass on the final beat (beat 3 to 4) before the drop
                 local_beat = beat_time - start_beat
@@ -518,8 +523,10 @@ class TrapArranger:
                     safe_add("hihats", start_beat + roll_start + 0.375, metadata={"velocity": 1.0, "pan": 0.8})
 
                 if open_hat_active:
-                    safe_add("open_hats", start_beat + 1.5, metadata={"pan": main_hihat_pan})
-                    safe_add("open_hats", start_beat + 3.5, metadata={"pan": main_hihat_pan})
+                    # Offset open hats on opposite side
+                    open_hat_pan = -main_hihat_pan
+                    safe_add("open_hats", start_beat + 1.5, metadata={"pan": open_hat_pan})
+                    safe_add("open_hats", start_beat + 3.5, metadata={"pan": open_hat_pan})
 
                 # Syncopated ghost hits and vocals
                 if is_turnaround:
