@@ -261,6 +261,12 @@ class AudioRenderer:
             if category.startswith("synth_"):
                 b_hp, a_hp = scipy.signal.butter(2, 35.0 / nyq, btype='high', analog=False)
                 audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
+
+            # Requirement 3: Dynamic Low-Pass Filtering
+            if "lpf" in metadata:
+                cutoff = metadata["lpf"]
+                b_lpf, a_lpf = scipy.signal.butter(2, cutoff / nyq, btype='low', analog=False)
+                audio_data = self._apply_biquad(audio_data, b_lpf, a_lpf)
             elif category in ["perc_oneshot", "perc_loop", "vox_oneshot", "vox_loop", "fx_oneshot", "fx_texture", "snares"]:
                 b_hp, a_hp = scipy.signal.butter(2, 40.0 / nyq, btype='high', analog=False)
                 audio_data = self._apply_biquad(audio_data, b_hp, a_hp)
