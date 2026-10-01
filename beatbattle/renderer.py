@@ -168,14 +168,8 @@ class AudioRenderer:
 
             # Load sample if not in cache
             if file_path not in sample_cache:
-                data, sr = sf.read(file_path, always_2d=True)
-
-                # Convert to stereo if mono
-                if data.shape[1] == 1:
-                    data = np.repeat(data, 2, axis=1)
-
-                # Transpose to shape (channels, samples)
-                data = data.T
+                from beatbattle.audio_utils import load_audio
+                data, sr = load_audio(file_path, target_sr=self.sample_rate)
 
                 # Automatic silence stripping / transient detection to fix timing delays.
                 # Find the first index where amplitude crosses a minimal threshold (-40 dBFS ~= 0.01).
