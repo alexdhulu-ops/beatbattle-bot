@@ -197,6 +197,7 @@ class TrapArranger:
         elif has_clap:
             active_snare_layers = ["claps"]
 
+        last_vox_position = -1.0
         for bar in range(self.total_bars):
             start_beat = bar * self.beats_per_bar
 
@@ -229,11 +230,33 @@ class TrapArranger:
                 return False
 
             def safe_add(category: str, beat_time: float, metadata: Dict[str, Any] = None):
+                nonlocal last_vox_position
+
                 # Only add if it's an active FX/Vox, or if it's not FX/Vox
                 if category.startswith("fx_") and category not in active_fx:
                     return
                 if category.startswith("vox_") and category not in active_vox:
                     return
+
+                # Requirement 1: Sample Selection Probability (De-duplicate Vocal/FX Tags)
+                if category == "vox_oneshot" or category == "fx_oneshot":
+                    # If this is specifically a pre-drop transition impact, we allow it to pass always (e.g. at beat 0 of bar 0, 16, etc.)
+                    # But if it's a recurring tag, lower probability
+                    is_impact = (beat_time % 16.0 == 0.0)
+                    if not is_impact:
+                        if rng.random() > 0.30:  # 30% chance to play
+                            return
+
+                        # If playing, make sure we don't play on the exact same bar position in consecutive 8-bar chunks or something.
+                        # We'll just slightly randomize the placement within a 1-beat window if it's a vox tag.
+                        local_pos = beat_time % self.beats_per_bar
+                        if category == "vox_oneshot":
+                            if local_pos == last_vox_position:
+                                # try alternate trigger placement (e.g. shift by 1 beat or 0.5 beat)
+                                beat_time += rng.choice([-0.5, 0.5, 1.0])
+                                # ensure it doesn't bleed into next bar unexpectedly, though small shifts are fine
+
+                            last_vox_position = (beat_time % self.beats_per_bar)
 
                 metadata = metadata or {}
 
@@ -249,17 +272,37 @@ class TrapArranger:
 
                 # Pre-Drop Silence / Respiration: Cut all melodic instruments and bass on the final beat (beat 3 to 4) before the drop
                 local_beat = beat_time - start_beat
+
+                # Requirement 4: Pre-Drop Gap / Mute (Beat 4 Cut)
+                # Hard-mute ALL active instruments on beat 4 (local_beat >= 3.0) of the last bar before the drop
                 if is_pre_drop_bar() and local_beat >= 3.0:
-                    if category.startswith("synth_") or category == "808s" or category == "kicks":
-                        return
+                    return
 
                 # Regular drum skipping
+                # Requirement 3: Melodic Filtering in Intro/Breakdown
+                if category.startswith("synth_"):
+                    if is_intro or is_breakdown:
+                        metadata["lpf"] = 600.0  # Apply 600 Hz LPF during intro/breakdown to leave acoustic room
+
+                # Requirement 3: Arrangement Breathing (Mute melodic loop on 8th bar turnaround)
+                # Mute synth loops on beat 2 onwards of the 8th bar (i.e. bar 7, 15, 23)
+                if category.startswith("synth_loop_") and (bar % 8 == 7):
+                    # Cut loop early, so duration is only up to beat 2 (2 beats)
+                    metadata["duration"] = 2.0 * self.beat_duration_sec
+
+                # Requirement 4: Trim loop duration if it's the pre-drop bar to enforce silence on beat 4
+                if category.startswith("synth_loop_") and is_pre_drop_bar():
+                    # Duration is up to beat 3 (which is 3 beats long)
+                    metadata["duration"] = min(metadata.get("duration", 999.0), 3.0 * self.beat_duration_sec)
+
                 if category.startswith("synth_") or category.startswith("fx") or category.startswith("vox"):
                     add_event(category, beat_time, metadata)
                 elif not should_skip_drum_beat(beat_time):
                     add_event(category, beat_time, metadata)
 
+
             # Determine 808 pitch for this bar based on algorithm
+
             bar_in_progression = bar % 8
 
             if bass_algorithm == "root_pedal":
@@ -280,6 +323,28 @@ class TrapArranger:
 
             # Turnaround/accent markers
             is_turnaround = bar % 4 == 3
+
+            # --- Snare Fills ---
+            # On the 4th bar of an 8-bar cycle (bars 3, 7, 11, 15, 19, 23 in 0-indexed),
+            # introduce an automated snare fill at the end of the bar.
+            if bar % 8 == 3 or bar % 8 == 7:
+                # Unless it's muted by pre-drop cut (handled in safe_add, but here we can just add them and let safe_add filter if needed,
+                # or we just avoid it if we know we are cutting. Actually we want a fill resolving into 16th notes).
+                if not (pre_drop_break and is_pre_drop_bar()):
+                    for layer in active_snare_layers:
+                        # 8th notes resolving to 16th notes
+                        safe_add(layer, start_beat + 2.5, metadata={"velocity": 0.7})
+                        safe_add(layer, start_beat + 3.0, metadata={"velocity": 0.8})
+                        safe_add(layer, start_beat + 3.5, metadata={"velocity": 0.9})
+                        safe_add(layer, start_beat + 3.75, metadata={"velocity": 1.0})
+
+            # --- Hi-hat Variations ---
+            # Inject short rolls on beat 4 of alternating bars
+            if bar % 2 == 0 and not is_pre_drop_bar():
+                # 1/32 note descending velocity roll on beat 4
+                roll_vels = [0.9, 0.7, 0.5, 0.3]
+                for i, vel in enumerate(roll_vels):
+                    safe_add("hihats", start_beat + 3.0 + i*0.125, metadata={"velocity": vel, "pan": main_hihat_pan})
 
             # Intro / Bridge Ambiance
             if bar == 0 or bar == 12:
